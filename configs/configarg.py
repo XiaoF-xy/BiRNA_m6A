@@ -31,6 +31,7 @@ VERSION_CONFIG_MODULES = {
     "v1_baseline": "experiments.v1_baseline.config_v1",
     "v2_birna_bert_lora": "experiments.v2_birna_bert_lora.config_v2",
     "v3_birna_bert_bpe_dual_view": "experiments.v3_birna_bert_bpe_dual_view.config_v3",
+    "v4_birna_bert_bpe_dual_view_lora": "experiments.v4_birna_bert_bpe_dual_view_lora.config_v4",
 }
 
 

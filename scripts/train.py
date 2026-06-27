@@ -20,7 +20,12 @@ from configs.configarg import (  # noqa: E402
 )
 
 
-RUNNABLE_VERSIONS = {"v1_baseline", "v2_birna_bert_lora", "v3_birna_bert_bpe_dual_view"}
+RUNNABLE_VERSIONS = {
+    "v1_baseline",
+    "v2_birna_bert_lora",
+    "v3_birna_bert_bpe_dual_view",
+    "v4_birna_bert_bpe_dual_view_lora",
+}
 
 
 def _json_default(value: Any):

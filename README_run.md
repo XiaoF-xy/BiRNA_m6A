@@ -1,11 +1,12 @@
 # BiRNA_m6A Run Guide
 
-当前正式保留三种可复现实验方案：
+当前正式保留四种可复现实验方案：
 
 ```text
 v1_baseline                   = BiRNA-BERT NUC frozen baseline
 v2_birna_bert_lora            = BiRNA-BERT NUC + LoRA
 v3_birna_bert_bpe_dual_view   = BiRNA-BERT NUC + BPE dual view
+v4_birna_bert_bpe_dual_view_lora = BiRNA-BERT NUC + BPE dual view + LoRA
 ```
 
 旧的重复训练入口已经移除，避免后续维护时出现多个训练入口不一致的问题。
@@ -155,6 +156,42 @@ python train.py --version v3_birna_bert_bpe_dual_view --dataset H_k --seed 42
 python train.py --version v3_birna_bert_bpe_dual_view --dataset H_l --seed 42
 ```
 
+## v4: NUC + BPE dual view + LoRA
+
+方法：
+
+```text
+NUC view = BiRNA-BERT + NUC tokenization + mask-aware mean pooling + center pooling
+BPE view = BiRNA-BERT + BPE tokenization + mask-aware mean pooling
+Fusion   = concat([nuc_mean, nuc_center, bpe_mean]) + MLP classifier
+LoRA     = Wqkv
+```
+
+LoRA 默认参数：
+
+```text
+lora_r = 8
+lora_alpha = 32
+lora_dropout = 0.05
+lora_target_modules = Wqkv
+```
+
+该版本不做 full fine-tune，训练 LoRA adapter 和 MLP classifier。相比 v3，只增加 LoRA；相比 v2，只增加 BPE 视图。
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42
+```
+
+运行人类三个数据集：
+
+```bash
+python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42
+python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_k --seed 42
+python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_l --seed 42
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -216,4 +253,5 @@ python train.py --version v2_birna_bert_lora --dataset H_b --seed 42 --keep_best
 python train.py --version v1_baseline --dataset H_b --seed 42 --dry_run
 python train.py --version v2_birna_bert_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v3_birna_bert_bpe_dual_view --dataset H_b --seed 42 --dry_run
+python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42 --dry_run
 ```

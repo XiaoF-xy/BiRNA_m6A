@@ -9,6 +9,7 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v1_baseline` | runnable | BiRNA-BERT NUC frozen baseline: mean pooling + center pooling + MLP classifier |
 | `v2_birna_bert_lora` | runnable | BiRNA-BERT NUC + LoRA on `Wqkv` + MLP classifier |
 | `v3_birna_bert_bpe_dual_view` | runnable | BiRNA-BERT NUC view + BPE view: concat([nuc_mean, nuc_center, bpe_mean]) + MLP classifier |
+| `v4_birna_bert_bpe_dual_view_lora` | runnable | BiRNA-BERT NUC+BPE dual view + LoRA on `Wqkv` + MLP classifier |
 
 ## Directory Structure
 
@@ -25,7 +26,8 @@ BiRNA_m6A/
 ├── experiments/
 │   ├── v1_baseline/
 │   ├── v2_birna_bert_lora/
-│   └── v3_birna_bert_bpe_dual_view/
+│   ├── v3_birna_bert_bpe_dual_view/
+│   └── v4_birna_bert_bpe_dual_view_lora/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -33,7 +35,8 @@ BiRNA_m6A/
 ├── outputs/
 │   ├── v1_baseline/
 │   ├── v2_birna_bert_lora/
-│   └── v3_birna_bert_bpe_dual_view/
+│   ├── v3_birna_bert_bpe_dual_view/
+│   └── v4_birna_bert_bpe_dual_view_lora/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -53,9 +56,10 @@ Each version only stores the differences from the global config:
 experiments/v1_baseline/config_v1.py
 experiments/v2_birna_bert_lora/config_v2.py
 experiments/v3_birna_bert_bpe_dual_view/config_v3.py
+experiments/v4_birna_bert_bpe_dual_view_lora/config_v4.py
 ```
 
-`configs/configarg.py` only keeps the parameters currently needed by v1/v2/v3: model path, tokenizer path, dataset alias, output path, CV settings, BPE-view switch, and LoRA settings. Version configs only override the small differences between frozen baseline, LoRA, and BPE dual-view.
+`configs/configarg.py` only keeps the parameters currently needed by v1/v2/v3/v4: model path, tokenizer path, dataset alias, output path, CV settings, BPE-view switch, and LoRA settings. Version configs only override the small differences between frozen baseline, LoRA, BPE dual-view, and BPE dual-view LoRA.
 
 ## Run Experiments
 
@@ -77,6 +81,12 @@ BPE dual view:
 
 ```bash
 python train.py --version v3_birna_bert_bpe_dual_view --dataset H_b --seed 42
+```
+
+BPE dual view + LoRA:
+
+```bash
+python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42
 ```
 
 Dataset aliases:
