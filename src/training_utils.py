@@ -10,7 +10,7 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
-from dataset_utils import SequenceSample, sequence_to_nuc_text
+from dataset_utils import SequenceSample, sequence_to_bpe_text, sequence_to_nuc_text
 from metrics_utils import compute_binary_metrics
 
 
@@ -49,6 +49,59 @@ class NucDataCollator:
         return encoded
 
 
+class DualViewDataCollator:
+    def __init__(self, tokenizer, max_length: int):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __call__(self, batch):
+        sequences = [item["sequence"] for item in batch]
+        nuc_texts = [sequence_to_nuc_text(sequence) for sequence in sequences]
+        bpe_texts = [sequence_to_bpe_text(sequence) for sequence in sequences]
+        nuc_encoded = self.tokenizer(
+            nuc_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        )
+        bpe_encoded = self.tokenizer(
+            bpe_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        )
+        special_token_ids = set(self.tokenizer.all_special_ids)
+        nuc_content_mask = (
+            nuc_encoded["attention_mask"].bool()
+            & ~torch.isin(
+                nuc_encoded["input_ids"],
+                torch.tensor(sorted(special_token_ids), dtype=nuc_encoded["input_ids"].dtype),
+            )
+        )
+        bpe_content_mask = (
+            bpe_encoded["attention_mask"].bool()
+            & ~torch.isin(
+                bpe_encoded["input_ids"],
+                torch.tensor(sorted(special_token_ids), dtype=bpe_encoded["input_ids"].dtype),
+            )
+        )
+        encoded = {
+            f"nuc_{key}": value
+            for key, value in nuc_encoded.items()
+        }
+        encoded.update({
+            f"bpe_{key}": value
+            for key, value in bpe_encoded.items()
+        })
+        encoded["nuc_content_mask"] = nuc_content_mask
+        encoded["bpe_content_mask"] = bpe_content_mask
+        encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
+        encoded["sequences"] = sequences
+        return encoded
+
+
 def set_seed(seed: int):
     random.seed(seed)
     np.random.seed(seed)
@@ -79,7 +132,7 @@ def move_batch_to_device(batch: dict, device: torch.device) -> tuple[dict, torch
     model_inputs = {
         key: value.to(device)
         for key, value in batch.items()
-        if key in {"input_ids", "attention_mask", "token_type_ids"}
+        if torch.is_tensor(value) and key != "labels"
     }
     return model_inputs, labels, sequences
 

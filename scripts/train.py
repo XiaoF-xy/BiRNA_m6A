@@ -20,7 +20,7 @@ from configs.configarg import (  # noqa: E402
 )
 
 
-RUNNABLE_VERSIONS = {"v1_baseline", "v2_birna_bert_lora"}
+RUNNABLE_VERSIONS = {"v1_baseline", "v2_birna_bert_lora", "v3_birna_bert_bpe_dual_view"}
 
 
 def _json_default(value: Any):
@@ -66,6 +66,8 @@ def build_cv_command(config) -> list[str]:
     ]
     if model.freeze_backbone:
         command.append("--freeze_backbone")
+    if model.use_bpe_view:
+        command.append("--use_bpe_view")
     if model.use_lora:
         command.extend([
             "--use_lora",

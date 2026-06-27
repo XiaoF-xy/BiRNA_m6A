@@ -15,8 +15,10 @@ from torch.utils.data import DataLoader
 
 from dataset_utils import SequenceSample, read_samples_from_file
 from metrics_utils import format_metrics, json_safe_metrics
+from model_birna_dual_view import BiRNADualViewClassifier
 from model_birna_nuc import BiRNANucClassifier, load_birna_tokenizer
 from training_utils import (
+    DualViewDataCollator,
     RNANucDataset,
     NucDataCollator,
     append_train_log,
@@ -37,7 +39,7 @@ METRIC_KEYS = ["ACC", "MCC", "AUC", "AUPRC", "F1", "Precision", "Recall"]
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Run stratified k-fold cross validation on one 41bp m6A dataset with BiRNA-BERT NUC baseline."
+        description="Run stratified k-fold cross validation on one 41bp m6A dataset with BiRNA-BERT."
     )
     parser.add_argument("--model_dir", type=Path, default=Path("./pretrained/birna-bert-model"))
     parser.add_argument("--tokenizer_dir", type=Path, default=Path("./pretrained/birna-bert-model"))
@@ -50,6 +52,7 @@ def parse_args():
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max_length", type=int, default=64)
     parser.add_argument("--freeze_backbone", action="store_true")
+    parser.add_argument("--use_bpe_view", action="store_true")
     parser.add_argument("--use_lora", action="store_true")
     parser.add_argument("--lora_r", type=int, default=8)
     parser.add_argument("--lora_alpha", type=int, default=32)
@@ -94,12 +97,20 @@ def load_single_dataset_train_test(data_dir: Path) -> tuple[list[SequenceSample]
     return train_samples, test_samples, stats
 
 
-def make_loader(samples: list[SequenceSample], tokenizer, max_length: int, batch_size: int, shuffle: bool):
+def make_loader(
+    samples: list[SequenceSample],
+    tokenizer,
+    max_length: int,
+    batch_size: int,
+    shuffle: bool,
+    use_bpe_view: bool,
+):
+    collator_cls = DualViewDataCollator if use_bpe_view else NucDataCollator
     return DataLoader(
         RNANucDataset(samples),
         batch_size=batch_size,
         shuffle=shuffle,
-        collate_fn=NucDataCollator(tokenizer=tokenizer, max_length=max_length),
+        collate_fn=collator_cls(tokenizer=tokenizer, max_length=max_length),
         num_workers=0,
     )
 
@@ -121,7 +132,8 @@ def train_one_fold(
 
     set_seed(args.seed + fold_idx - 1)
     lora_target_modules = [item.strip() for item in args.lora_target_modules.split(",") if item.strip()]
-    model = BiRNANucClassifier(
+    model_cls = BiRNADualViewClassifier if args.use_bpe_view else BiRNANucClassifier
+    model = model_cls(
         model_dir=args.model_dir,
         freeze_backbone=args.freeze_backbone,
         use_lora=args.use_lora,
@@ -140,9 +152,30 @@ def train_one_fold(
         lr=args.lr,
     )
     criterion = nn.CrossEntropyLoss()
-    train_loader = make_loader(train_samples, tokenizer, args.max_length, args.batch_size, shuffle=True)
-    val_loader = make_loader(val_samples, tokenizer, args.max_length, args.batch_size, shuffle=False)
-    test_loader = make_loader(independent_test_samples, tokenizer, args.max_length, args.batch_size, shuffle=False)
+    train_loader = make_loader(
+        train_samples,
+        tokenizer,
+        args.max_length,
+        args.batch_size,
+        shuffle=True,
+        use_bpe_view=args.use_bpe_view,
+    )
+    val_loader = make_loader(
+        val_samples,
+        tokenizer,
+        args.max_length,
+        args.batch_size,
+        shuffle=False,
+        use_bpe_view=args.use_bpe_view,
+    )
+    test_loader = make_loader(
+        independent_test_samples,
+        tokenizer,
+        args.max_length,
+        args.batch_size,
+        shuffle=False,
+        use_bpe_view=args.use_bpe_view,
+    )
 
     best_score = -math.inf
     best_epoch = None
@@ -318,6 +351,7 @@ def main():
     print(f"output_dir: {args.output_dir}")
     print(f"folds: {args.folds}")
     print(f"freeze_backbone: {args.freeze_backbone}")
+    print(f"use_bpe_view: {args.use_bpe_view}")
     print(f"use_lora: {args.use_lora}")
     print(f"keep_best_model: {args.keep_best_model}")
     if args.use_lora:

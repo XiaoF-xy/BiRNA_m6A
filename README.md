@@ -8,6 +8,7 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 |---|---|---|
 | `v1_baseline` | runnable | BiRNA-BERT NUC frozen baseline: mean pooling + center pooling + MLP classifier |
 | `v2_birna_bert_lora` | runnable | BiRNA-BERT NUC + LoRA on `Wqkv` + MLP classifier |
+| `v3_birna_bert_bpe_dual_view` | runnable | BiRNA-BERT NUC view + BPE view: concat([nuc_mean, nuc_center, bpe_mean]) + MLP classifier |
 
 ## Directory Structure
 
@@ -23,14 +24,16 @@ BiRNA_m6A/
 ├── env/
 ├── experiments/
 │   ├── v1_baseline/
-│   └── v2_birna_bert_lora/
+│   ├── v2_birna_bert_lora/
+│   └── v3_birna_bert_bpe_dual_view/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
 ├── src/
 ├── outputs/
 │   ├── v1_baseline/
-│   └── v2_birna_bert_lora/
+│   ├── v2_birna_bert_lora/
+│   └── v3_birna_bert_bpe_dual_view/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -49,9 +52,10 @@ Each version only stores the differences from the global config:
 ```text
 experiments/v1_baseline/config_v1.py
 experiments/v2_birna_bert_lora/config_v2.py
+experiments/v3_birna_bert_bpe_dual_view/config_v3.py
 ```
 
-`configs/configarg.py` only keeps the parameters currently needed by v1/v2: model path, tokenizer path, dataset alias, output path, CV settings, and LoRA settings. Version configs only override the small differences between frozen baseline and LoRA.
+`configs/configarg.py` only keeps the parameters currently needed by v1/v2/v3: model path, tokenizer path, dataset alias, output path, CV settings, BPE-view switch, and LoRA settings. Version configs only override the small differences between frozen baseline, LoRA, and BPE dual-view.
 
 ## Run Experiments
 
@@ -67,6 +71,12 @@ LoRA:
 
 ```bash
 python train.py --version v2_birna_bert_lora --dataset H_b --seed 42
+```
+
+BPE dual view:
+
+```bash
+python train.py --version v3_birna_bert_bpe_dual_view --dataset H_b --seed 42
 ```
 
 Dataset aliases:

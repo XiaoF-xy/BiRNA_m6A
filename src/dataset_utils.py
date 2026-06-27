@@ -44,6 +44,10 @@ def sequence_to_nuc_text(sequence: str) -> str:
     return " ".join(sequence)
 
 
+def sequence_to_bpe_text(sequence: str) -> str:
+    return sequence
+
+
 def infer_split_from_path(path: Path) -> str | None:
     text = " ".join(part.lower() for part in path.parts)
     name = path.stem.lower()

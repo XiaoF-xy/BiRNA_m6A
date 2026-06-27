@@ -30,6 +30,7 @@ DATASET_ALIASES = {
 VERSION_CONFIG_MODULES = {
     "v1_baseline": "experiments.v1_baseline.config_v1",
     "v2_birna_bert_lora": "experiments.v2_birna_bert_lora.config_v2",
+    "v3_birna_bert_bpe_dual_view": "experiments.v3_birna_bert_bpe_dual_view.config_v3",
 }
 
 
@@ -50,6 +51,7 @@ class ModelConfig:
     model_dir: Path = MODEL_ROOT / "birna-bert-model"
     tokenizer_dir: Path = MODEL_ROOT / "birna-bert-model"
     freeze_backbone: bool = True
+    use_bpe_view: bool = False
     use_lora: bool = False
     lora_r: int = 8
     lora_alpha: int = 32
