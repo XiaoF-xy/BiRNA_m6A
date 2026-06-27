@@ -1,0 +1,12 @@
+dataset,train_positive,train_negative,train_total,test_positive,test_negative,test_total,train_skipped_not_41nt,test_skipped_not_41nt
+Human_Brain,4605,4605,9210,4604,4604,9208,0,0
+Human_Kidney,4574,4574,9148,4573,4573,9146,0,0
+Human_Liver,2634,2634,5268,2634,2634,5268,0,0
+Mouse_brain,8025,8025,16050,8025,8025,16050,0,0
+Mouse_heart,2201,2201,4402,2200,2200,4400,0,0
+Mouse_kidney,3953,3953,7906,3952,3952,7904,0,0
+Mouse_liver,4133,4133,8266,4133,4133,8266,0,0
+Mouse_test,4707,4707,9414,4706,4706,9412,0,0
+rat_brain,2352,2352,4704,2351,2351,4702,0,0
+rat_kidney,3433,3433,6866,3432,3432,6864,0,0
+rat_liver,1762,1762,3524,1762,1762,3524,0,0

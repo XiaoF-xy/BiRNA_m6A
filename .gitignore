@@ -1,0 +1,55 @@
+# macOS / editor files
+.DS_Store
+._*
+.vscode/
+.idea/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environments
+.venv/
+.venv-*/
+venv/
+env-local/
+
+# Runtime logs
+*.log
+logs/*
+!logs/.gitkeep
+
+# Experiment outputs and checkpoints
+outputs/**
+!outputs/
+!outputs/.gitkeep
+!outputs/checkpoints/
+!outputs/checkpoints/.gitkeep
+!outputs/logs/
+!outputs/logs/.gitkeep
+!outputs/lora_adapters/
+!outputs/lora_adapters/.gitkeep
+!outputs/results/
+!outputs/results/.gitkeep
+
+# Optional raw/processed data staging folders
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+
+# Hugging Face / model cache files
+pretrained/**/.cache/
+pretrained/**/*.lock
+
+# Large model weights: keep configs/tokenizers/code in git, not binary weights
+pretrained/**/*.bin
+pretrained/**/*.safetensors
+pretrained/**/*.ckpt
+pretrained/**/*.pt
+pretrained/**/*.pth
+
