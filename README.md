@@ -29,10 +29,8 @@ BiRNA_m6A/
 ├── scripts/
 ├── src/
 ├── outputs/
-│   ├── checkpoints/
-│   ├── logs/
-│   ├── lora_adapters/
-│   └── results/
+│   ├── v1_baseline/
+│   └── v2_birna_bert_lora/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -95,7 +93,7 @@ Versioned runs save outputs under:
 outputs/<version>/<dataset>/seed_<seed>/
 ```
 
-The current CV training script saves:
+The current CV training script writes all metrics, logs, predictions, and temporary checkpoints into that run directory:
 
 ```text
 fold_x/metrics.json

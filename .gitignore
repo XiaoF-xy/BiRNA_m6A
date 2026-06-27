@@ -27,14 +27,8 @@ logs/*
 outputs/**
 !outputs/
 !outputs/.gitkeep
-!outputs/checkpoints/
-!outputs/checkpoints/.gitkeep
-!outputs/logs/
-!outputs/logs/.gitkeep
-!outputs/lora_adapters/
-!outputs/lora_adapters/.gitkeep
-!outputs/results/
-!outputs/results/.gitkeep
+!outputs/**/
+!outputs/**/.gitkeep
 
 # Optional raw/processed data staging folders
 data/raw/*
@@ -52,4 +46,3 @@ pretrained/**/*.safetensors
 pretrained/**/*.ckpt
 pretrained/**/*.pt
 pretrained/**/*.pth
-

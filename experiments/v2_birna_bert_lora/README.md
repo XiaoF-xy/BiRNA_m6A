@@ -38,7 +38,6 @@ python train.py --version v2_birna_bert_lora --dataset H_b --seed 42
 
 ```text
 outputs/v2_birna_bert_lora/<dataset>/seed_<seed>/
-outputs/lora_adapters/v2_birna_bert_lora/<dataset>/seed_<seed>/
 ```
 
 ## 与上一版本相比的变化
