@@ -44,21 +44,21 @@ def build_cv_command(config) -> list[str]:
         sys.executable,
         str(PROJECT_ROOT / "src" / "train_cv.py"),
         "--model_dir",
-        str(model.pretrained_model_path),
+        str(model.model_dir),
         "--tokenizer_dir",
-        str(model.tokenizer_path),
+        str(model.tokenizer_dir),
         "--data_dir",
-        str(get_active_data_dir(data.dataset_name)),
+        str(data.data_dir),
         "--output_dir",
         str(training.output_dir),
         "--folds",
         str(training.folds),
         "--epochs",
-        str(training.num_train_epochs),
+        str(training.epochs),
         "--batch_size",
-        str(training.per_device_train_batch_size),
+        str(training.batch_size),
         "--lr",
-        str(training.learning_rate),
+        str(training.lr),
         "--seed",
         str(training.seed),
         "--max_length",
@@ -101,8 +101,7 @@ def main(default_version: str = "v2_birna_bert_lora"):
 
     if config.experiment.version_name not in RUNNABLE_VERSIONS:
         raise NotImplementedError(
-            f"{config.experiment.version_name} is configured as a future experiment scaffold, "
-            "but its model implementation is not available yet. Runnable versions: "
+            f"{config.experiment.version_name} is not runnable. Supported versions: "
             f"{', '.join(sorted(RUNNABLE_VERSIONS))}"
         )
 

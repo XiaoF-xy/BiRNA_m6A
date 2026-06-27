@@ -53,7 +53,7 @@ experiments/v1_baseline/config_v1.py
 experiments/v2_birna_bert_lora/config_v2.py
 ```
 
-Do not duplicate all parameters in every version config. Put common paths, data settings, model defaults, training defaults, and LoRA defaults in `configs/configarg.py`.
+`configs/configarg.py` only keeps the parameters currently needed by v1/v2: model path, tokenizer path, dataset alias, output path, CV settings, and LoRA settings. Version configs only override the small differences between frozen baseline and LoRA.
 
 ## Run Experiments
 
