@@ -7,9 +7,7 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | Version | Status | Method |
 |---|---|---|
 | `v1_baseline` | runnable | BiRNA-BERT NUC frozen baseline: mean pooling + center pooling + MLP classifier |
-| `v2_birna_bert_feature` | scaffold | Reserved for BiRNA-BERT feature extraction and handcrafted sequence features |
-| `v3_birna_bert_lora` | runnable | BiRNA-BERT NUC + LoRA on `Wqkv` + MLP classifier |
-| `v4_moe_fusion` | scaffold | Reserved for NUC/BPE/feature MoE fusion |
+| `v2_birna_bert_lora` | runnable | BiRNA-BERT NUC + LoRA on `Wqkv` + MLP classifier |
 
 ## Directory Structure
 
@@ -25,9 +23,7 @@ BiRNA_m6A/
 ├── env/
 ├── experiments/
 │   ├── v1_baseline/
-│   ├── v2_birna_bert_feature/
-│   ├── v3_birna_bert_lora/
-│   └── v4_moe_fusion/
+│   └── v2_birna_bert_lora/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -54,9 +50,7 @@ Each version only stores the differences from the global config:
 
 ```text
 experiments/v1_baseline/config_v1.py
-experiments/v2_birna_bert_feature/config_v2.py
-experiments/v3_birna_bert_lora/config_v3.py
-experiments/v4_moe_fusion/config_v4.py
+experiments/v2_birna_bert_lora/config_v2.py
 ```
 
 Do not duplicate all parameters in every version config. Put common paths, data settings, model defaults, training defaults, and LoRA defaults in `configs/configarg.py`.
@@ -74,7 +68,7 @@ python train.py --version v1_baseline --dataset H_b --seed 42
 LoRA:
 
 ```bash
-python train.py --version v3_birna_bert_lora --dataset H_b --seed 42
+python train.py --version v2_birna_bert_lora --dataset H_b --seed 42
 ```
 
 Dataset aliases:
@@ -136,11 +130,4 @@ The repository keeps lightweight model code, config, tokenizer files, and experi
 
 ## Notes
 
-The old scripts in `src/` are intentionally kept for compatibility:
-
-```text
-src/train_birna_nuc_cv.py
-src/train_birna_nuc_baseline.py
-```
-
-The new `train.py` entrypoint reads `configs/configarg.py`, applies the selected version config, and then launches the stable CV training script.
+The duplicated legacy training entrypoints were removed to avoid multiple sources of truth. The current `train.py` entrypoint reads `configs/configarg.py`, applies the selected version config, and launches `src/train_cv.py`.

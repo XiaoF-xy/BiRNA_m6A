@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from dataset_utils import SequenceSample, read_samples_from_file
 from metrics_utils import format_metrics, json_safe_metrics
 from model_birna_nuc import BiRNANucClassifier, load_birna_tokenizer
-from train_birna_nuc_baseline import (
+from training_utils import (
     RNANucDataset,
     NucDataCollator,
     append_train_log,

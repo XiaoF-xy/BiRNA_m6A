@@ -36,9 +36,7 @@ DATASET_ALIASES = {
 
 VERSION_CONFIG_MODULES = {
     "v1_baseline": "experiments.v1_baseline.config_v1",
-    "v2_birna_bert_feature": "experiments.v2_birna_bert_feature.config_v2",
-    "v3_birna_bert_lora": "experiments.v3_birna_bert_lora.config_v3",
-    "v4_moe_fusion": "experiments.v4_moe_fusion.config_v4",
+    "v2_birna_bert_lora": "experiments.v2_birna_bert_lora.config_v2",
 }
 
 

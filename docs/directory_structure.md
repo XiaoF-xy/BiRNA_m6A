@@ -19,6 +19,5 @@ BiRNA_m6A/
 - Keep common parameters in `configs/configarg.py`.
 - Keep only version-specific differences in `experiments/v*/config_v*.py`.
 - Keep each version self-documented with `experiments/v*/README.md`.
-- Keep old stable scripts in `src/` until the new launcher is fully validated.
+- Keep one training implementation in `src/train_cv.py`; shared training utilities live in `src/training_utils.py`.
 - Store run outputs by `version/dataset/seed` for reproducibility.
-

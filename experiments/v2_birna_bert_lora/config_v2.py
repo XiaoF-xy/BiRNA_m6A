@@ -4,7 +4,7 @@ from __future__ import annotations
 def get_overrides(dataset_name: str, seed: int) -> dict:
     return {
         "experiment": {
-            "version_name": "v3_birna_bert_lora",
+            "version_name": "v2_birna_bert_lora",
             "output_suffix": "nuc_lora",
             "description": "BiRNA-BERT NUC + LoRA on Wqkv with mean + center pooling and MLP classifier.",
             "changes_from_previous": "Adds LoRA adapter training to the frozen NUC baseline.",
@@ -45,4 +45,3 @@ def get_overrides(dataset_name: str, seed: int) -> dict:
             "keep_best_model": False,
         },
     }
-

@@ -57,16 +57,8 @@ source .venv-birna-cpu/bin/activate
 ```bash
 cd BiRNA_m6A
 
-python src/train_birna_nuc_baseline.py \
-  --model_dir ./pretrained/birna-bert-model \
-  --tokenizer_dir ./pretrained/birna-bert-model \
-  --data_dir ./data/m6A_41bp \
-  --output_dir ./outputs/birna_nuc_baseline \
-  --epochs 20 \
-  --batch_size 32 \
-  --lr 1e-4 \
-  --seed 42 \
-  --freeze_backbone
+python train.py --version v1_baseline --dataset H_b --seed 42
+python train.py --version v2_birna_bert_lora --dataset H_b --seed 42
 ```
 
 如果服务器 CUDA 不是 12.1，不要硬用 `cu121` 脚本。请按服务器驱动支持的 CUDA wheel 修改脚本里的 PyTorch index URL，例如 `cu118`、`cu124` 或 CPU。

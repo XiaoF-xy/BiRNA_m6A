@@ -1,4 +1,4 @@
-# v3_birna_bert_lora
+# v2_birna_bert_lora
 
 ## 实验目的
 
@@ -31,14 +31,14 @@ lora_target_modules = ["Wqkv"]
 ## 训练命令
 
 ```bash
-python train.py --version v3_birna_bert_lora --dataset H_b --seed 42
+python train.py --version v2_birna_bert_lora --dataset H_b --seed 42
 ```
 
 ## 输出结果保存位置
 
 ```text
-outputs/v3_birna_bert_lora/<dataset>/seed_<seed>/
-outputs/lora_adapters/v3_birna_bert_lora/<dataset>/seed_<seed>/
+outputs/v2_birna_bert_lora/<dataset>/seed_<seed>/
+outputs/lora_adapters/v2_birna_bert_lora/<dataset>/seed_<seed>/
 ```
 
 ## 与上一版本相比的变化
@@ -48,4 +48,3 @@ outputs/lora_adapters/v3_birna_bert_lora/<dataset>/seed_<seed>/
 ## 当前版本的实验结论或备注
 
 Human_Brain 上 LoRA 相对 frozen baseline 已观察到 ACC、MCC、AUC、AUPRC、F1 和 Recall 提升。下一步优先跑 Human_Kidney 和 Human_Liver。
-

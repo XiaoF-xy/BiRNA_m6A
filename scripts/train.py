@@ -20,7 +20,7 @@ from configs.configarg import (  # noqa: E402
 )
 
 
-RUNNABLE_VERSIONS = {"v1_baseline", "v3_birna_bert_lora"}
+RUNNABLE_VERSIONS = {"v1_baseline", "v2_birna_bert_lora"}
 
 
 def _json_default(value: Any):
@@ -42,7 +42,7 @@ def build_cv_command(config) -> list[str]:
     training = config.training
     command = [
         sys.executable,
-        str(PROJECT_ROOT / "src" / "train_birna_nuc_cv.py"),
+        str(PROJECT_ROOT / "src" / "train_cv.py"),
         "--model_dir",
         str(model.pretrained_model_path),
         "--tokenizer_dir",
@@ -83,7 +83,7 @@ def build_cv_command(config) -> list[str]:
     return command
 
 
-def parse_args(default_version: str = "v3_birna_bert_lora"):
+def parse_args(default_version: str = "v2_birna_bert_lora"):
     parser = argparse.ArgumentParser(description="Run a versioned BiRNA_m6A experiment from Python configs.")
     parser.add_argument("--version", type=str, default=default_version)
     parser.add_argument("--dataset", type=str, default="H_b")
@@ -93,7 +93,7 @@ def parse_args(default_version: str = "v3_birna_bert_lora"):
     return parser.parse_args()
 
 
-def main(default_version: str = "v3_birna_bert_lora"):
+def main(default_version: str = "v2_birna_bert_lora"):
     args = parse_args(default_version=default_version)
     config = load_experiment_config(version_name=args.version, dataset_name=args.dataset, seed=args.seed)
     if args.keep_best_model:
