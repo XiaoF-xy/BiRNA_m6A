@@ -103,6 +103,7 @@ class DataConfig:
 class TrainConfig:
     output_dir: Path = OUTPUT_ROOT / "v1_baseline" / "Human_Brain" / "seed_42"
     eval_protocol: str = "strict_cv"
+    selection_metric: str = "ACC"
     folds: int = 5
     epochs: int = 20
     batch_size: int = 32

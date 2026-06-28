@@ -19,7 +19,7 @@ strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
 test_as_val  = 完整 train.csv 训练，每个 epoch 用 test.csv 选 best epoch
 ```
 
-`test_as_val` 只用于和已有 test-as-validation 论文代码做 benchmark-style 对标，不能表述为严格 independent test。
+`test_as_val` 只用于和已有 test-as-validation 论文代码做 benchmark-style 对标，不能表述为严格 independent test。当前默认使用 `ACC` 选择 best epoch，以对齐 DFM 代码的 benchmark-style 选择方式；MCC/AUC/AUPRC/F1 仍会完整输出用于分析。
 
 旧的重复训练入口已经移除，避免后续维护时出现多个训练入口不一致的问题。
 
@@ -363,7 +363,7 @@ test_as_val:
 
 ```text
 train.csv -> 全部作为训练集
-test.csv -> 每个 epoch 评估并选择 best epoch
+test.csv -> 每个 epoch 评估，并按 ACC 选择 best epoch
 最终报告该 best epoch 在 test.csv 上的 benchmark 指标
 ```
 

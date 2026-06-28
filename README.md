@@ -26,7 +26,7 @@ Benchmark aliases using test-as-validation are also runnable:
 | `v4_birna_bert_bpe_dual_view_lora_test_as_val` | `v4_birna_bert_bpe_dual_view_lora` | train on full `train.csv`; select best epoch on `test.csv` |
 | `v5_nuc_lora_no_center_test_as_val` | `v5_nuc_lora_no_center` | train on full `train.csv`; select best epoch on `test.csv` |
 
-Use the test-as-validation aliases only for benchmark-style comparison with methods that follow the same protocol. These outputs should not be described as strict independent-test results.
+Use the test-as-validation aliases only for benchmark-style comparison with methods that follow the same protocol. These outputs should not be described as strict independent-test results. The default best-epoch selection metric is `ACC`, matching the benchmark-style selection used by DFM code.
 
 ## Directory Structure
 
@@ -85,7 +85,7 @@ experiments/v6a_bpe_global_nuc_local_film_lora/config_v6a.py
 experiments/v6b_nuc_global_nuc_local_film_lora/config_v6b.py
 ```
 
-`configs/configarg.py` keeps the shared parameters currently needed by v1-v6: model path, tokenizer path, dataset alias, output path, evaluation protocol, BPE-view switch, FiLM switch, local-window size, and LoRA settings. Version configs only override the small differences between methods.
+`configs/configarg.py` keeps the shared parameters currently needed by v1-v6: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, and LoRA settings. Version configs only override the small differences between methods.
 
 ## Run Experiments
 

@@ -65,6 +65,8 @@ def build_cv_command(config) -> list[str]:
         str(training.max_length),
         "--eval_protocol",
         training.eval_protocol,
+        "--selection_metric",
+        training.selection_metric,
     ]
     if model.freeze_backbone:
         command.append("--freeze_backbone")
@@ -125,6 +127,7 @@ def main(default_version: str = "v2_birna_bert_lora"):
     print(f"dataset: {config.data.dataset_name}")
     print(f"seed: {config.training.seed}")
     print(f"eval_protocol: {config.training.eval_protocol}")
+    print(f"selection_metric: {config.training.selection_metric}")
     print(f"output_dir: {config.training.output_dir}")
     print("command:")
     print(" ".join(command))

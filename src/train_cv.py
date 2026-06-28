@@ -63,6 +63,13 @@ def parse_args():
             "test_as_val: use test.csv as the model-selection set for benchmark-style comparison."
         ),
     )
+    parser.add_argument(
+        "--selection_metric",
+        type=str,
+        choices=METRIC_KEYS,
+        default="ACC",
+        help="Metric used to select the best epoch/checkpoint. Default follows DFM-style ACC selection.",
+    )
     parser.add_argument("--freeze_backbone", action="store_true")
     parser.add_argument(
         "--disable_center_pooling",
@@ -249,7 +256,7 @@ def train_one_fold(
             device=device,
             desc=f"Fold {fold_idx} epoch {epoch} {selection_desc}",
         )
-        score = metric_score(val_metrics)
+        score = metric_score(val_metrics, selection_metric=args.selection_metric)
         is_best = score > best_score
         if is_best:
             best_score = score
@@ -260,6 +267,7 @@ def train_one_fold(
                     "fold": fold_idx,
                     "epoch": epoch,
                     "best_score": best_score,
+                    "selection_metric": args.selection_metric,
                     "args": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
                     "model_state_dict": model.state_dict(),
                     "val_metrics": val_metrics,
@@ -276,7 +284,7 @@ def train_one_fold(
         print(
             f"Fold {fold_idx} epoch {epoch:03d} "
             f"train_loss={train_loss:.4f} val_loss={val_loss:.4f} "
-            f"{format_metrics(val_metrics)} best_score={best_score:.4f}"
+            f"{format_metrics(val_metrics)} best_{args.selection_metric}={best_score:.4f}"
         )
         row = {
             "epoch": epoch,
@@ -311,6 +319,7 @@ def train_one_fold(
         ),
         "best_epoch": best_epoch,
         "best_score": best_score,
+        "selection_metric": args.selection_metric,
         "best_model_path": str(best_model_path),
         "best_model_deleted": False,
         "val_metrics_at_best": best_val_metrics,
@@ -414,6 +423,7 @@ def main():
     print(f"data_dir: {args.data_dir}")
     print(f"output_dir: {args.output_dir}")
     print(f"eval_protocol: {args.eval_protocol}")
+    print(f"selection_metric: {args.selection_metric}")
     print(f"folds: {args.folds}")
     print(f"freeze_backbone: {args.freeze_backbone}")
     print(f"use_center_pooling: {not args.disable_center_pooling}")

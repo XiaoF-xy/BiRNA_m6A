@@ -237,13 +237,10 @@ def evaluate(model, loader, criterion, device, desc: str, return_predictions: bo
     return avg_loss, metrics
 
 
-def metric_score(metrics: dict[str, float]) -> float:
-    mcc = metrics.get("MCC", math.nan)
-    if not math.isnan(mcc):
-        return mcc
-    auc = metrics.get("AUC", math.nan)
-    if not math.isnan(auc):
-        return auc
+def metric_score(metrics: dict[str, float], selection_metric: str = "ACC") -> float:
+    score = metrics.get(selection_metric, math.nan)
+    if not math.isnan(score):
+        return float(score)
     return -math.inf
 
 
