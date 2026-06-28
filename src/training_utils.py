@@ -49,6 +49,39 @@ class NucDataCollator:
         return encoded
 
 
+class NucViewDataCollator:
+    def __init__(self, tokenizer, max_length: int):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __call__(self, batch):
+        sequences = [item["sequence"] for item in batch]
+        texts = [sequence_to_nuc_text(sequence) for sequence in sequences]
+        nuc_encoded = self.tokenizer(
+            texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        )
+        special_token_ids = set(self.tokenizer.all_special_ids)
+        nuc_content_mask = (
+            nuc_encoded["attention_mask"].bool()
+            & ~torch.isin(
+                nuc_encoded["input_ids"],
+                torch.tensor(sorted(special_token_ids), dtype=nuc_encoded["input_ids"].dtype),
+            )
+        )
+        encoded = {
+            f"nuc_{key}": value
+            for key, value in nuc_encoded.items()
+        }
+        encoded["nuc_content_mask"] = nuc_content_mask
+        encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
+        encoded["sequences"] = sequences
+        return encoded
+
+
 class DualViewDataCollator:
     def __init__(self, tokenizer, max_length: int):
         self.tokenizer = tokenizer

@@ -1,6 +1,6 @@
 # BiRNA_m6A Run Guide
 
-当前正式保留四种可复现实验方案：
+当前正式保留以下可复现实验方案：
 
 ```text
 v1_baseline                   = BiRNA-BERT NUC frozen baseline
@@ -8,9 +8,11 @@ v2_birna_bert_lora            = BiRNA-BERT NUC + LoRA
 v3_birna_bert_bpe_dual_view   = BiRNA-BERT NUC + BPE dual view
 v4_birna_bert_bpe_dual_view_lora = BiRNA-BERT NUC + BPE dual view + LoRA
 v5_nuc_lora_no_center         = v2 消融：NUC + LoRA，不使用显式中心位点 pooling
+v6a_bpe_global_nuc_local_film_lora = BPE global -> FiLM -> NUC local + LoRA
+v6b_nuc_global_nuc_local_film_lora = NUC global -> FiLM -> NUC local + LoRA
 ```
 
-每种方案都有两套评估协议：
+v1-v5 有两套评估协议；v6a/v6b 默认只使用 test_as_val：
 
 ```text
 strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
@@ -263,6 +265,80 @@ python train.py --version v5_nuc_lora_no_center --dataset H_k --seed 42
 python train.py --version v5_nuc_lora_no_center --dataset H_l --seed 42
 ```
 
+## v6a: BPE global -> FiLM -> NUC local + LoRA
+
+方法：
+
+```text
+BPE global = BiRNA-BERT BPE tokenization + mask-aware mean pooling
+NUC local  = BiRNA-BERT NUC tokenization + center +/-3 nt local window mean pooling
+FiLM       = gamma, beta = MLP(BPE global)
+Fusion     = concat([BPE global, gamma * NUC local + beta])
+LoRA       = Wqkv
+```
+
+局部窗口：
+
+```text
+center_index = 20
+local_window_radius = 3
+NUC local = nuc_emb[:, 17:24, :].mean(dim=1)
+```
+
+该版本默认就是 test-as-val 对标协议，不需要 `_test_as_val` 后缀。
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_b --seed 42
+```
+
+运行人类三个数据集：
+
+```bash
+python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_b --seed 42
+python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_k --seed 42
+python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_l --seed 42
+```
+
+## v6b: NUC global -> FiLM -> NUC local + LoRA
+
+方法：
+
+```text
+NUC global = BiRNA-BERT NUC tokenization + mask-aware mean pooling
+NUC local  = BiRNA-BERT NUC tokenization + center +/-3 nt local window mean pooling
+FiLM       = gamma, beta = MLP(NUC global)
+Fusion     = concat([NUC global, gamma * NUC local + beta])
+LoRA       = Wqkv
+```
+
+该版本是 v6a 的关键对照，用于判断 BPE global 是否真的比 NUC global 有额外价值。v6b 默认也是 test-as-val 对标协议。
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_b --seed 42
+```
+
+运行人类三个数据集：
+
+```bash
+python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_b --seed 42
+python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_k --seed 42
+python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_l --seed 42
+```
+
+## 与 DFM 的关系
+
+v6a/v6b 不是完整复刻 DFM。它们只复用 DFM 的核心思想：
+
+```text
+global view -> FiLM -> local view
+```
+
+当前暂时不加入 MoE experts 和 gating，目的是先验证 FiLM/global-local 机制是否有效。如果 v6a/v6b 有稳定提升，再考虑后续版本加入 MoE。
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -346,4 +422,6 @@ python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 
 python train.py --version v4_birna_bert_bpe_dual_view_lora_test_as_val --dataset H_b --seed 42 --dry_run
 python train.py --version v5_nuc_lora_no_center --dataset H_b --seed 42 --dry_run
 python train.py --version v5_nuc_lora_no_center_test_as_val --dataset H_b --seed 42 --dry_run
+python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_b --seed 42 --dry_run
 ```

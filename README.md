@@ -11,8 +11,10 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v3_birna_bert_bpe_dual_view` | runnable | BiRNA-BERT NUC view + BPE view: concat([nuc_mean, nuc_center, bpe_mean]) + MLP classifier |
 | `v4_birna_bert_bpe_dual_view_lora` | runnable | BiRNA-BERT NUC+BPE dual view + LoRA on `Wqkv` + MLP classifier |
 | `v5_nuc_lora_no_center` | runnable | v2 ablation: BiRNA-BERT NUC + LoRA without explicit center-token pooling |
+| `v6a_bpe_global_nuc_local_film_lora` | runnable | BPE global -> FiLM -> NUC local window + LoRA |
+| `v6b_nuc_global_nuc_local_film_lora` | runnable | NUC global -> FiLM -> NUC local window + LoRA |
 
-The four versions above use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation.
+Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b are test-as-validation-only experiments by default.
 
 Benchmark aliases using test-as-validation are also runnable:
 
@@ -43,7 +45,9 @@ BiRNA_m6A/
 │   ├── v2_birna_bert_lora/
 │   ├── v3_birna_bert_bpe_dual_view/
 │   ├── v4_birna_bert_bpe_dual_view_lora/
-│   └── v5_nuc_lora_no_center/
+│   ├── v5_nuc_lora_no_center/
+│   ├── v6a_bpe_global_nuc_local_film_lora/
+│   └── v6b_nuc_global_nuc_local_film_lora/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -52,7 +56,10 @@ BiRNA_m6A/
 │   ├── v1_baseline/
 │   ├── v2_birna_bert_lora/
 │   ├── v3_birna_bert_bpe_dual_view/
-│   └── v4_birna_bert_bpe_dual_view_lora/
+│   ├── v4_birna_bert_bpe_dual_view_lora/
+│   ├── v5_nuc_lora_no_center/
+│   ├── v6a_bpe_global_nuc_local_film_lora/
+│   └── v6b_nuc_global_nuc_local_film_lora/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -74,9 +81,11 @@ experiments/v2_birna_bert_lora/config_v2.py
 experiments/v3_birna_bert_bpe_dual_view/config_v3.py
 experiments/v4_birna_bert_bpe_dual_view_lora/config_v4.py
 experiments/v5_nuc_lora_no_center/config_v5.py
+experiments/v6a_bpe_global_nuc_local_film_lora/config_v6a.py
+experiments/v6b_nuc_global_nuc_local_film_lora/config_v6b.py
 ```
 
-`configs/configarg.py` only keeps the parameters currently needed by v1/v2/v3/v4: model path, tokenizer path, dataset alias, output path, CV settings, BPE-view switch, and LoRA settings. Version configs only override the small differences between frozen baseline, LoRA, BPE dual-view, and BPE dual-view LoRA.
+`configs/configarg.py` keeps the shared parameters currently needed by v1-v6: model path, tokenizer path, dataset alias, output path, evaluation protocol, BPE-view switch, FiLM switch, local-window size, and LoRA settings. Version configs only override the small differences between methods.
 
 ## Run Experiments
 
@@ -112,6 +121,13 @@ No-center pooling ablation:
 
 ```bash
 python train.py --version v5_nuc_lora_no_center --dataset H_b --seed 42
+```
+
+FiLM global-local experiments use test-as-validation by default:
+
+```bash
+python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_b --seed 42
+python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_b --seed 42
 ```
 
 Test-as-validation benchmark protocol:

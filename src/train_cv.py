@@ -16,11 +16,13 @@ from torch.utils.data import DataLoader
 from dataset_utils import SequenceSample, read_samples_from_file
 from metrics_utils import format_metrics, json_safe_metrics
 from model_birna_dual_view import BiRNADualViewClassifier
+from model_birna_film import BiRNAFiLMLocalClassifier
 from model_birna_nuc import BiRNANucClassifier, load_birna_tokenizer
 from training_utils import (
     DualViewDataCollator,
     RNANucDataset,
     NucDataCollator,
+    NucViewDataCollator,
     append_train_log,
     evaluate,
     metric_score,
@@ -68,6 +70,20 @@ def parse_args():
         help="Ablation switch: use sequence mean pooling only and remove explicit center-token pooling.",
     )
     parser.add_argument("--use_bpe_view", action="store_true")
+    parser.add_argument("--use_film", action="store_true")
+    parser.add_argument(
+        "--film_global_view",
+        type=str,
+        choices=["bpe", "nuc"],
+        default="bpe",
+        help="Global view used to generate FiLM gamma/beta when --use_film is set.",
+    )
+    parser.add_argument(
+        "--local_window_radius",
+        type=int,
+        default=3,
+        help="Radius around the center A for NUC local pooling. radius=3 uses positions 17:24 for 41bp input.",
+    )
     parser.add_argument("--use_lora", action="store_true")
     parser.add_argument("--lora_r", type=int, default=8)
     parser.add_argument("--lora_alpha", type=int, default=32)
@@ -119,8 +135,14 @@ def make_loader(
     batch_size: int,
     shuffle: bool,
     use_bpe_view: bool,
+    use_film: bool = False,
 ):
-    collator_cls = DualViewDataCollator if use_bpe_view else NucDataCollator
+    if use_bpe_view:
+        collator_cls = DualViewDataCollator
+    elif use_film:
+        collator_cls = NucViewDataCollator
+    else:
+        collator_cls = NucDataCollator
     return DataLoader(
         RNANucDataset(samples),
         batch_size=batch_size,
@@ -147,17 +169,27 @@ def train_one_fold(
 
     set_seed(args.seed + fold_idx - 1)
     lora_target_modules = [item.strip() for item in args.lora_target_modules.split(",") if item.strip()]
-    model_cls = BiRNADualViewClassifier if args.use_bpe_view else BiRNANucClassifier
-    model = model_cls(
-        model_dir=args.model_dir,
-        freeze_backbone=args.freeze_backbone,
-        use_center_pooling=not args.disable_center_pooling,
-        use_lora=args.use_lora,
-        lora_r=args.lora_r,
-        lora_alpha=args.lora_alpha,
-        lora_dropout=args.lora_dropout,
-        lora_target_modules=lora_target_modules,
-    )
+    common_model_kwargs = {
+        "model_dir": args.model_dir,
+        "freeze_backbone": args.freeze_backbone,
+        "use_lora": args.use_lora,
+        "lora_r": args.lora_r,
+        "lora_alpha": args.lora_alpha,
+        "lora_dropout": args.lora_dropout,
+        "lora_target_modules": lora_target_modules,
+    }
+    if args.use_film:
+        model = BiRNAFiLMLocalClassifier(
+            **common_model_kwargs,
+            film_global_view=args.film_global_view,
+            local_window_radius=args.local_window_radius,
+        )
+    else:
+        model_cls = BiRNADualViewClassifier if args.use_bpe_view else BiRNANucClassifier
+        model = model_cls(
+            **common_model_kwargs,
+            use_center_pooling=not args.disable_center_pooling,
+        )
     model.to(device)
     trainable_params = sum(parameter.numel() for parameter in model.parameters() if parameter.requires_grad)
     total_params = sum(parameter.numel() for parameter in model.parameters())
@@ -175,6 +207,7 @@ def train_one_fold(
         args.batch_size,
         shuffle=True,
         use_bpe_view=args.use_bpe_view,
+        use_film=args.use_film,
     )
     val_loader = make_loader(
         val_samples,
@@ -183,6 +216,7 @@ def train_one_fold(
         args.batch_size,
         shuffle=False,
         use_bpe_view=args.use_bpe_view,
+        use_film=args.use_film,
     )
     test_loader = make_loader(
         independent_test_samples,
@@ -191,6 +225,7 @@ def train_one_fold(
         args.batch_size,
         shuffle=False,
         use_bpe_view=args.use_bpe_view,
+        use_film=args.use_film,
     )
 
     best_score = -math.inf
@@ -368,6 +403,8 @@ def main():
         raise ValueError("--batch_size must be a positive integer.")
     if args.max_length < 43:
         raise ValueError("--max_length must be at least 43 for 41 NUC tokens plus CLS/SEP.")
+    if args.local_window_radius < 0:
+        raise ValueError("--local_window_radius must be non-negative.")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     set_seed(args.seed)
@@ -381,6 +418,10 @@ def main():
     print(f"freeze_backbone: {args.freeze_backbone}")
     print(f"use_center_pooling: {not args.disable_center_pooling}")
     print(f"use_bpe_view: {args.use_bpe_view}")
+    print(f"use_film: {args.use_film}")
+    if args.use_film:
+        print(f"film_global_view: {args.film_global_view}")
+        print(f"local_window_radius: {args.local_window_radius}")
     print(f"use_lora: {args.use_lora}")
     print(f"keep_best_model: {args.keep_best_model}")
     if args.use_lora:

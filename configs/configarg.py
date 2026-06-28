@@ -33,6 +33,13 @@ BASE_VERSION_CONFIG_MODULES = {
     "v3_birna_bert_bpe_dual_view": "experiments.v3_birna_bert_bpe_dual_view.config_v3",
     "v4_birna_bert_bpe_dual_view_lora": "experiments.v4_birna_bert_bpe_dual_view_lora.config_v4",
     "v5_nuc_lora_no_center": "experiments.v5_nuc_lora_no_center.config_v5",
+    "v6a_bpe_global_nuc_local_film_lora": "experiments.v6a_bpe_global_nuc_local_film_lora.config_v6a",
+    "v6b_nuc_global_nuc_local_film_lora": "experiments.v6b_nuc_global_nuc_local_film_lora.config_v6b",
+}
+
+TEST_AS_VAL_ONLY_VERSIONS = {
+    "v6a_bpe_global_nuc_local_film_lora",
+    "v6b_nuc_global_nuc_local_film_lora",
 }
 
 TEST_AS_VAL_ALIASES = {
@@ -53,7 +60,7 @@ VERSION_CONFIG_MODULES = {
 
 
 def get_eval_protocol(version_name: str) -> str:
-    return "test_as_val" if version_name in TEST_AS_VAL_ALIASES else "strict_cv"
+    return "test_as_val" if version_name in TEST_AS_VAL_ALIASES or version_name in TEST_AS_VAL_ONLY_VERSIONS else "strict_cv"
 
 
 def canonical_dataset_name(dataset: str) -> str:
@@ -75,6 +82,9 @@ class ModelConfig:
     freeze_backbone: bool = True
     use_center_pooling: bool = True
     use_bpe_view: bool = False
+    use_film: bool = False
+    film_global_view: str = "bpe"
+    local_window_radius: int = 3
     use_lora: bool = False
     lora_r: int = 8
     lora_alpha: int = 32

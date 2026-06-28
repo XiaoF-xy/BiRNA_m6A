@@ -72,6 +72,14 @@ def build_cv_command(config) -> list[str]:
         command.append("--disable_center_pooling")
     if model.use_bpe_view:
         command.append("--use_bpe_view")
+    if model.use_film:
+        command.extend([
+            "--use_film",
+            "--film_global_view",
+            model.film_global_view,
+            "--local_window_radius",
+            str(model.local_window_radius),
+        ])
     if model.use_lora:
         command.extend([
             "--use_lora",
