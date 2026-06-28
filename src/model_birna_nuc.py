@@ -85,6 +85,7 @@ class BiRNANucClassifier(nn.Module):
         freeze_backbone: bool = True,
         dropout: float = 0.2,
         center_index: int = 20,
+        use_center_pooling: bool = True,
         use_lora: bool = False,
         lora_r: int = 8,
         lora_alpha: int = 32,
@@ -95,6 +96,7 @@ class BiRNANucClassifier(nn.Module):
         self.birna_model = load_birna_backbone(model_dir)
         self.use_lora = use_lora
         self.center_index = center_index
+        self.use_center_pooling = use_center_pooling
         hidden_size = int(getattr(self.birna_model.config, "hidden_size", 768))
         if use_lora:
             self.birna_model = apply_lora_to_birna(
@@ -104,8 +106,9 @@ class BiRNANucClassifier(nn.Module):
                 alpha=lora_alpha,
                 dropout=lora_dropout,
             )
+        classifier_input_size = hidden_size * (2 if use_center_pooling else 1)
         self.classifier = nn.Sequential(
-            nn.Linear(hidden_size * 2, 256),
+            nn.Linear(classifier_input_size, 256),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(256, 2),
@@ -125,13 +128,16 @@ class BiRNANucClassifier(nn.Module):
             raise ValueError(f"Expected BiRNA-BERT token embeddings with shape [B, L, H], got: {tuple(emb.shape)}")
 
         token_emb = emb[:, 1:-1, :]
-        if token_emb.size(1) <= self.center_index:
+        if self.use_center_pooling and token_emb.size(1) <= self.center_index:
             raise ValueError(
                 "BiRNA-BERT output is too short for 41bp center pooling: "
                 f"token_count={token_emb.size(1)}, center_index={self.center_index}. "
                 "Check NUC tokenization and max_length."
             )
         mean_feat = token_emb.mean(dim=1)
-        center_feat = token_emb[:, self.center_index, :]
-        feat = torch.cat([mean_feat, center_feat], dim=1)
+        if self.use_center_pooling:
+            center_feat = token_emb[:, self.center_index, :]
+            feat = torch.cat([mean_feat, center_feat], dim=1)
+        else:
+            feat = mean_feat
         return self.classifier(feat)

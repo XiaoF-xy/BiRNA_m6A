@@ -68,6 +68,8 @@ def build_cv_command(config) -> list[str]:
     ]
     if model.freeze_backbone:
         command.append("--freeze_backbone")
+    if not model.use_center_pooling:
+        command.append("--disable_center_pooling")
     if model.use_bpe_view:
         command.append("--use_bpe_view")
     if model.use_lora:

@@ -32,6 +32,7 @@ BASE_VERSION_CONFIG_MODULES = {
     "v2_birna_bert_lora": "experiments.v2_birna_bert_lora.config_v2",
     "v3_birna_bert_bpe_dual_view": "experiments.v3_birna_bert_bpe_dual_view.config_v3",
     "v4_birna_bert_bpe_dual_view_lora": "experiments.v4_birna_bert_bpe_dual_view_lora.config_v4",
+    "v5_nuc_lora_no_center": "experiments.v5_nuc_lora_no_center.config_v5",
 }
 
 TEST_AS_VAL_ALIASES = {
@@ -39,6 +40,7 @@ TEST_AS_VAL_ALIASES = {
     "v2_birna_bert_lora_test_as_val": "v2_birna_bert_lora",
     "v3_birna_bert_bpe_dual_view_test_as_val": "v3_birna_bert_bpe_dual_view",
     "v4_birna_bert_bpe_dual_view_lora_test_as_val": "v4_birna_bert_bpe_dual_view_lora",
+    "v5_nuc_lora_no_center_test_as_val": "v5_nuc_lora_no_center",
 }
 
 VERSION_CONFIG_MODULES = {
@@ -71,6 +73,7 @@ class ModelConfig:
     model_dir: Path = MODEL_ROOT / "birna-bert-model"
     tokenizer_dir: Path = MODEL_ROOT / "birna-bert-model"
     freeze_backbone: bool = True
+    use_center_pooling: bool = True
     use_bpe_view: bool = False
     use_lora: bool = False
     lora_r: int = 8

@@ -10,6 +10,7 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v2_birna_bert_lora` | runnable | BiRNA-BERT NUC + LoRA on `Wqkv` + MLP classifier |
 | `v3_birna_bert_bpe_dual_view` | runnable | BiRNA-BERT NUC view + BPE view: concat([nuc_mean, nuc_center, bpe_mean]) + MLP classifier |
 | `v4_birna_bert_bpe_dual_view_lora` | runnable | BiRNA-BERT NUC+BPE dual view + LoRA on `Wqkv` + MLP classifier |
+| `v5_nuc_lora_no_center` | runnable | v2 ablation: BiRNA-BERT NUC + LoRA without explicit center-token pooling |
 
 The four versions above use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation.
 
@@ -21,6 +22,7 @@ Benchmark aliases using test-as-validation are also runnable:
 | `v2_birna_bert_lora_test_as_val` | `v2_birna_bert_lora` | train on full `train.csv`; select best epoch on `test.csv` |
 | `v3_birna_bert_bpe_dual_view_test_as_val` | `v3_birna_bert_bpe_dual_view` | train on full `train.csv`; select best epoch on `test.csv` |
 | `v4_birna_bert_bpe_dual_view_lora_test_as_val` | `v4_birna_bert_bpe_dual_view_lora` | train on full `train.csv`; select best epoch on `test.csv` |
+| `v5_nuc_lora_no_center_test_as_val` | `v5_nuc_lora_no_center` | train on full `train.csv`; select best epoch on `test.csv` |
 
 Use the test-as-validation aliases only for benchmark-style comparison with methods that follow the same protocol. These outputs should not be described as strict independent-test results.
 
@@ -40,7 +42,8 @@ BiRNA_m6A/
 │   ├── v1_baseline/
 │   ├── v2_birna_bert_lora/
 │   ├── v3_birna_bert_bpe_dual_view/
-│   └── v4_birna_bert_bpe_dual_view_lora/
+│   ├── v4_birna_bert_bpe_dual_view_lora/
+│   └── v5_nuc_lora_no_center/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -70,6 +73,7 @@ experiments/v1_baseline/config_v1.py
 experiments/v2_birna_bert_lora/config_v2.py
 experiments/v3_birna_bert_bpe_dual_view/config_v3.py
 experiments/v4_birna_bert_bpe_dual_view_lora/config_v4.py
+experiments/v5_nuc_lora_no_center/config_v5.py
 ```
 
 `configs/configarg.py` only keeps the parameters currently needed by v1/v2/v3/v4: model path, tokenizer path, dataset alias, output path, CV settings, BPE-view switch, and LoRA settings. Version configs only override the small differences between frozen baseline, LoRA, BPE dual-view, and BPE dual-view LoRA.
@@ -104,6 +108,12 @@ BPE dual view + LoRA:
 python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42
 ```
 
+No-center pooling ablation:
+
+```bash
+python train.py --version v5_nuc_lora_no_center --dataset H_b --seed 42
+```
+
 Test-as-validation benchmark protocol:
 
 ```bash
@@ -111,6 +121,7 @@ python train.py --version v1_baseline_test_as_val --dataset H_b --seed 42
 python train.py --version v2_birna_bert_lora_test_as_val --dataset H_b --seed 42
 python train.py --version v3_birna_bert_bpe_dual_view_test_as_val --dataset H_b --seed 42
 python train.py --version v4_birna_bert_bpe_dual_view_lora_test_as_val --dataset H_b --seed 42
+python train.py --version v5_nuc_lora_no_center_test_as_val --dataset H_b --seed 42
 ```
 
 Dataset aliases:

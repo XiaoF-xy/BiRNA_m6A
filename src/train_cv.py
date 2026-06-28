@@ -62,6 +62,11 @@ def parse_args():
         ),
     )
     parser.add_argument("--freeze_backbone", action="store_true")
+    parser.add_argument(
+        "--disable_center_pooling",
+        action="store_true",
+        help="Ablation switch: use sequence mean pooling only and remove explicit center-token pooling.",
+    )
     parser.add_argument("--use_bpe_view", action="store_true")
     parser.add_argument("--use_lora", action="store_true")
     parser.add_argument("--lora_r", type=int, default=8)
@@ -146,6 +151,7 @@ def train_one_fold(
     model = model_cls(
         model_dir=args.model_dir,
         freeze_backbone=args.freeze_backbone,
+        use_center_pooling=not args.disable_center_pooling,
         use_lora=args.use_lora,
         lora_r=args.lora_r,
         lora_alpha=args.lora_alpha,
@@ -373,6 +379,7 @@ def main():
     print(f"eval_protocol: {args.eval_protocol}")
     print(f"folds: {args.folds}")
     print(f"freeze_backbone: {args.freeze_backbone}")
+    print(f"use_center_pooling: {not args.disable_center_pooling}")
     print(f"use_bpe_view: {args.use_bpe_view}")
     print(f"use_lora: {args.use_lora}")
     print(f"keep_best_model: {args.keep_best_model}")

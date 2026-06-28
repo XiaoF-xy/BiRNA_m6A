@@ -7,6 +7,7 @@ v1_baseline                   = BiRNA-BERT NUC frozen baseline
 v2_birna_bert_lora            = BiRNA-BERT NUC + LoRA
 v3_birna_bert_bpe_dual_view   = BiRNA-BERT NUC + BPE dual view
 v4_birna_bert_bpe_dual_view_lora = BiRNA-BERT NUC + BPE dual view + LoRA
+v5_nuc_lora_no_center         = v2 消融：NUC + LoRA，不使用显式中心位点 pooling
 ```
 
 每种方案都有两套评估协议：
@@ -225,6 +226,43 @@ python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_k --seed 
 python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_l --seed 42
 ```
 
+## v5: NUC + LoRA without center pooling
+
+方法：
+
+```text
+BiRNA-BERT + NUC tokenization + LoRA(Wqkv) + mean pooling + MLP classifier
+```
+
+该版本是 v2 的 no-center 消融实验：
+
+```text
+v2 = concat([nuc_mean, nuc_center]) + LoRA
+v5 = nuc_mean + LoRA
+```
+
+用途：判断显式中心位点 token pooling 是否真正带来性能增益。
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v5_nuc_lora_no_center --dataset H_b --seed 42
+```
+
+test-as-val 对标运行：
+
+```bash
+python train.py --version v5_nuc_lora_no_center_test_as_val --dataset H_b --seed 42
+```
+
+运行人类三个数据集：
+
+```bash
+python train.py --version v5_nuc_lora_no_center --dataset H_b --seed 42
+python train.py --version v5_nuc_lora_no_center --dataset H_k --seed 42
+python train.py --version v5_nuc_lora_no_center --dataset H_l --seed 42
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -306,4 +344,6 @@ python train.py --version v2_birna_bert_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v3_birna_bert_bpe_dual_view --dataset H_b --seed 42 --dry_run
 python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v4_birna_bert_bpe_dual_view_lora_test_as_val --dataset H_b --seed 42 --dry_run
+python train.py --version v5_nuc_lora_no_center --dataset H_b --seed 42 --dry_run
+python train.py --version v5_nuc_lora_no_center_test_as_val --dataset H_b --seed 42 --dry_run
 ```

@@ -20,6 +20,7 @@ class BiRNADualViewClassifier(nn.Module):
         freeze_backbone: bool = True,
         dropout: float = 0.2,
         center_index: int = 20,
+        use_center_pooling: bool = True,
         use_lora: bool = False,
         lora_r: int = 8,
         lora_alpha: int = 32,
@@ -30,6 +31,7 @@ class BiRNADualViewClassifier(nn.Module):
         self.birna_model = load_birna_backbone(model_dir)
         self.use_lora = use_lora
         self.center_index = center_index
+        self.use_center_pooling = use_center_pooling
         hidden_size = int(getattr(self.birna_model.config, "hidden_size", 768))
         if use_lora:
             self.birna_model = apply_lora_to_birna(
@@ -39,8 +41,9 @@ class BiRNADualViewClassifier(nn.Module):
                 alpha=lora_alpha,
                 dropout=lora_dropout,
             )
+        classifier_input_size = hidden_size * (3 if use_center_pooling else 2)
         self.classifier = nn.Sequential(
-            nn.Linear(hidden_size * 3, 256),
+            nn.Linear(classifier_input_size, 256),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(256, 2),
@@ -86,7 +89,7 @@ class BiRNADualViewClassifier(nn.Module):
             attention_mask=nuc_attention_mask,
             token_type_ids=nuc_token_type_ids,
         )
-        if int(nuc_content_mask.sum(dim=1).min().item()) <= self.center_index:
+        if self.use_center_pooling and int(nuc_content_mask.sum(dim=1).min().item()) <= self.center_index:
             raise ValueError(
                 "BiRNA-BERT NUC output is too short for 41bp center pooling: "
                 f"min_content_token_count={int(nuc_content_mask.sum(dim=1).min().item())}, "
@@ -94,7 +97,6 @@ class BiRNADualViewClassifier(nn.Module):
                 "Check NUC tokenization and max_length."
             )
         nuc_mean = mask_aware_mean_pool(nuc_emb, nuc_content_mask)
-        nuc_center = nuc_emb[:, self.center_index + 1, :]
 
         bpe_emb = self._encode(
             input_ids=bpe_input_ids,
@@ -105,5 +107,9 @@ class BiRNADualViewClassifier(nn.Module):
             raise ValueError("BiRNA-BERT BPE output has no non-special tokens. Check BPE tokenization.")
         bpe_mean = mask_aware_mean_pool(bpe_emb, bpe_content_mask)
 
-        feat = torch.cat([nuc_mean, nuc_center, bpe_mean], dim=1)
+        if self.use_center_pooling:
+            nuc_center = nuc_emb[:, self.center_index + 1, :]
+            feat = torch.cat([nuc_mean, nuc_center, bpe_mean], dim=1)
+        else:
+            feat = torch.cat([nuc_mean, bpe_mean], dim=1)
         return self.classifier(feat)
