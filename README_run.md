@@ -9,6 +9,15 @@ v3_birna_bert_bpe_dual_view   = BiRNA-BERT NUC + BPE dual view
 v4_birna_bert_bpe_dual_view_lora = BiRNA-BERT NUC + BPE dual view + LoRA
 ```
 
+每种方案都有两套评估协议：
+
+```text
+strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
+test_as_val  = 完整 train.csv 训练，每个 epoch 用 test.csv 选 best epoch
+```
+
+`test_as_val` 只用于和已有 test-as-validation 论文代码做 benchmark-style 对标，不能表述为严格 independent test。
+
 旧的重复训练入口已经移除，避免后续维护时出现多个训练入口不一致的问题。
 
 当前统一入口：
@@ -89,6 +98,12 @@ BiRNA-BERT + NUC tokenization + mean pooling + center pooling + MLP classifier
 python train.py --version v1_baseline --dataset H_b --seed 42
 ```
 
+test-as-val 对标运行：
+
+```bash
+python train.py --version v1_baseline_test_as_val --dataset H_b --seed 42
+```
+
 运行人类三个数据集：
 
 ```bash
@@ -122,6 +137,12 @@ lora_target_modules = Wqkv
 python train.py --version v2_birna_bert_lora --dataset H_b --seed 42
 ```
 
+test-as-val 对标运行：
+
+```bash
+python train.py --version v2_birna_bert_lora_test_as_val --dataset H_b --seed 42
+```
+
 运行人类三个数据集：
 
 ```bash
@@ -146,6 +167,12 @@ Fusion   = concat([nuc_mean, nuc_center, bpe_mean]) + MLP classifier
 
 ```bash
 python train.py --version v3_birna_bert_bpe_dual_view --dataset H_b --seed 42
+```
+
+test-as-val 对标运行：
+
+```bash
+python train.py --version v3_birna_bert_bpe_dual_view_test_as_val --dataset H_b --seed 42
 ```
 
 运行人类三个数据集：
@@ -184,6 +211,12 @@ lora_target_modules = Wqkv
 python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42
 ```
 
+test-as-val 对标运行：
+
+```bash
+python train.py --version v4_birna_bert_bpe_dual_view_lora_test_as_val --dataset H_b --seed 42
+```
+
 运行人类三个数据集：
 
 ```bash
@@ -204,10 +237,20 @@ test.csv
 训练流程：
 
 ```text
+strict_cv:
+
 train.csv -> 分层 5 折
 每折 80% train / 20% val
 test.csv 始终作为 independent test
 最终汇总 5 折 independent test mean/std
+```
+
+test_as_val:
+
+```text
+train.csv -> 全部作为训练集
+test.csv -> 每个 epoch 评估并选择 best epoch
+最终报告该 best epoch 在 test.csv 上的 benchmark 指标
 ```
 
 ## 输出文件
@@ -222,6 +265,12 @@ outputs/<version>/<dataset>/seed_<seed>/
 
 ```text
 outputs/v2_birna_bert_lora/Human_Brain/seed_42/
+```
+
+test-as-val 版本会写入单独目录，例如：
+
+```text
+outputs/v2_birna_bert_lora_test_as_val/Human_Brain/seed_42/
 ```
 
 输出内容：
@@ -239,6 +288,8 @@ cv_summary.json
 resolved_config.json
 ```
 
+strict 版本默认有 `fold_1` 到 `fold_5`。test-as-val 版本默认是单次 benchmark run，只会有 `fold_1`，因为它直接使用完整 `train.csv` 训练。
+
 默认不长期保存 `best_model.pt`。脚本会在评估完成后删除每折最优权重，保留指标和预测结果。若确实需要保留模型权重：
 
 ```bash
@@ -254,4 +305,5 @@ python train.py --version v1_baseline --dataset H_b --seed 42 --dry_run
 python train.py --version v2_birna_bert_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v3_birna_bert_bpe_dual_view --dataset H_b --seed 42 --dry_run
 python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v4_birna_bert_bpe_dual_view_lora_test_as_val --dataset H_b --seed 42 --dry_run
 ```

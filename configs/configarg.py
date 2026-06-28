@@ -27,12 +27,31 @@ DATASET_ALIASES = {
 }
 
 
-VERSION_CONFIG_MODULES = {
+BASE_VERSION_CONFIG_MODULES = {
     "v1_baseline": "experiments.v1_baseline.config_v1",
     "v2_birna_bert_lora": "experiments.v2_birna_bert_lora.config_v2",
     "v3_birna_bert_bpe_dual_view": "experiments.v3_birna_bert_bpe_dual_view.config_v3",
     "v4_birna_bert_bpe_dual_view_lora": "experiments.v4_birna_bert_bpe_dual_view_lora.config_v4",
 }
+
+TEST_AS_VAL_ALIASES = {
+    "v1_baseline_test_as_val": "v1_baseline",
+    "v2_birna_bert_lora_test_as_val": "v2_birna_bert_lora",
+    "v3_birna_bert_bpe_dual_view_test_as_val": "v3_birna_bert_bpe_dual_view",
+    "v4_birna_bert_bpe_dual_view_lora_test_as_val": "v4_birna_bert_bpe_dual_view_lora",
+}
+
+VERSION_CONFIG_MODULES = {
+    **BASE_VERSION_CONFIG_MODULES,
+    **{
+        alias: BASE_VERSION_CONFIG_MODULES[base_version]
+        for alias, base_version in TEST_AS_VAL_ALIASES.items()
+    },
+}
+
+
+def get_eval_protocol(version_name: str) -> str:
+    return "test_as_val" if version_name in TEST_AS_VAL_ALIASES else "strict_cv"
 
 
 def canonical_dataset_name(dataset: str) -> str:
@@ -70,6 +89,7 @@ class DataConfig:
 @dataclass
 class TrainConfig:
     output_dir: Path = OUTPUT_ROOT / "v1_baseline" / "Human_Brain" / "seed_42"
+    eval_protocol: str = "strict_cv"
     folds: int = 5
     epochs: int = 20
     batch_size: int = 32
@@ -109,19 +129,29 @@ def load_experiment_config(version_name: str, dataset_name: str = "Human_Brain",
         raise ValueError(f"Unknown version: {version_name}. Supported versions: {supported}")
 
     dataset = canonical_dataset_name(dataset_name)
+    eval_protocol = get_eval_protocol(version_name)
     module = importlib.import_module(VERSION_CONFIG_MODULES[version_name])
     config = apply_overrides(ProjectConfig(), module.get_overrides(dataset_name=dataset, seed=seed))
 
-    config.experiment = replace(config.experiment, version_name=version_name)
+    description = config.experiment.description
+    if eval_protocol == "test_as_val":
+        description = f"{description} Test-as-validation benchmark protocol."
+    config.experiment = replace(config.experiment, version_name=version_name, description=description)
     config.data = replace(
         config.data,
         dataset_name=dataset,
         data_dir=get_active_data_dir(dataset),
     )
+    training_updates = {
+        "seed": seed,
+        "output_dir": get_output_dir(version_name, dataset, seed),
+        "eval_protocol": eval_protocol,
+    }
+    if eval_protocol == "test_as_val":
+        training_updates["folds"] = 1
     config.training = replace(
         config.training,
-        seed=seed,
-        output_dir=get_output_dir(version_name, dataset, seed),
+        **training_updates,
     )
     return config
 

@@ -11,6 +11,19 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v3_birna_bert_bpe_dual_view` | runnable | BiRNA-BERT NUC view + BPE view: concat([nuc_mean, nuc_center, bpe_mean]) + MLP classifier |
 | `v4_birna_bert_bpe_dual_view_lora` | runnable | BiRNA-BERT NUC+BPE dual view + LoRA on `Wqkv` + MLP classifier |
 
+The four versions above use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation.
+
+Benchmark aliases using test-as-validation are also runnable:
+
+| Version Alias | Base Method | Protocol |
+|---|---|---|
+| `v1_baseline_test_as_val` | `v1_baseline` | train on full `train.csv`; select best epoch on `test.csv` |
+| `v2_birna_bert_lora_test_as_val` | `v2_birna_bert_lora` | train on full `train.csv`; select best epoch on `test.csv` |
+| `v3_birna_bert_bpe_dual_view_test_as_val` | `v3_birna_bert_bpe_dual_view` | train on full `train.csv`; select best epoch on `test.csv` |
+| `v4_birna_bert_bpe_dual_view_lora_test_as_val` | `v4_birna_bert_bpe_dual_view_lora` | train on full `train.csv`; select best epoch on `test.csv` |
+
+Use the test-as-validation aliases only for benchmark-style comparison with methods that follow the same protocol. These outputs should not be described as strict independent-test results.
+
 ## Directory Structure
 
 ```text
@@ -65,6 +78,8 @@ experiments/v4_birna_bert_bpe_dual_view_lora/config_v4.py
 
 Terminal commands should only specify version, dataset, and seed.
 
+Strict protocol:
+
 Frozen baseline:
 
 ```bash
@@ -89,6 +104,15 @@ BPE dual view + LoRA:
 python train.py --version v4_birna_bert_bpe_dual_view_lora --dataset H_b --seed 42
 ```
 
+Test-as-validation benchmark protocol:
+
+```bash
+python train.py --version v1_baseline_test_as_val --dataset H_b --seed 42
+python train.py --version v2_birna_bert_lora_test_as_val --dataset H_b --seed 42
+python train.py --version v3_birna_bert_bpe_dual_view_test_as_val --dataset H_b --seed 42
+python train.py --version v4_birna_bert_bpe_dual_view_lora_test_as_val --dataset H_b --seed 42
+```
+
 Dataset aliases:
 
 ```text
@@ -111,6 +135,13 @@ Versioned runs save outputs under:
 
 ```text
 outputs/<version>/<dataset>/seed_<seed>/
+```
+
+For example, the strict v4 and benchmark v4 outputs are separated:
+
+```text
+outputs/v4_birna_bert_bpe_dual_view_lora/Human_Brain/seed_42/
+outputs/v4_birna_bert_bpe_dual_view_lora_test_as_val/Human_Brain/seed_42/
 ```
 
 The current CV training script writes all metrics, logs, predictions, and temporary checkpoints into that run directory:

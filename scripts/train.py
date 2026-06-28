@@ -14,18 +14,13 @@ if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
 from configs.configarg import (  # noqa: E402
-    get_active_data_dir,
     load_experiment_config,
     ensure_output_dirs,
+    VERSION_CONFIG_MODULES,
 )
 
 
-RUNNABLE_VERSIONS = {
-    "v1_baseline",
-    "v2_birna_bert_lora",
-    "v3_birna_bert_bpe_dual_view",
-    "v4_birna_bert_bpe_dual_view_lora",
-}
+RUNNABLE_VERSIONS = set(VERSION_CONFIG_MODULES)
 
 
 def _json_default(value: Any):
@@ -68,6 +63,8 @@ def build_cv_command(config) -> list[str]:
         str(training.seed),
         "--max_length",
         str(training.max_length),
+        "--eval_protocol",
+        training.eval_protocol,
     ]
     if model.freeze_backbone:
         command.append("--freeze_backbone")
@@ -117,6 +114,7 @@ def main(default_version: str = "v2_birna_bert_lora"):
     print(f"version: {config.experiment.version_name}")
     print(f"dataset: {config.data.dataset_name}")
     print(f"seed: {config.training.seed}")
+    print(f"eval_protocol: {config.training.eval_protocol}")
     print(f"output_dir: {config.training.output_dir}")
     print("command:")
     print(" ".join(command))

@@ -51,6 +51,16 @@ def parse_args():
     parser.add_argument("--lr", type=float, default=1e-4)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max_length", type=int, default=64)
+    parser.add_argument(
+        "--eval_protocol",
+        type=str,
+        choices=["strict_cv", "test_as_val"],
+        default="strict_cv",
+        help=(
+            "strict_cv: split train.csv into train/val folds and use test.csv only for final evaluation. "
+            "test_as_val: use test.csv as the model-selection set for benchmark-style comparison."
+        ),
+    )
     parser.add_argument("--freeze_backbone", action="store_true")
     parser.add_argument("--use_bpe_view", action="store_true")
     parser.add_argument("--use_lora", action="store_true")
@@ -180,6 +190,7 @@ def train_one_fold(
     best_score = -math.inf
     best_epoch = None
     best_val_metrics = None
+    selection_desc = "test-as-val" if args.eval_protocol == "test_as_val" else "val"
     for epoch in range(1, args.epochs + 1):
         train_loss = train_one_epoch(
             model=model,
@@ -195,7 +206,7 @@ def train_one_fold(
             loader=val_loader,
             criterion=criterion,
             device=device,
-            desc=f"Fold {fold_idx} epoch {epoch} val",
+            desc=f"Fold {fold_idx} epoch {epoch} {selection_desc}",
         )
         score = metric_score(val_metrics)
         is_best = score > best_score
@@ -211,6 +222,7 @@ def train_one_fold(
                     "args": {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()},
                     "model_state_dict": model.state_dict(),
                     "val_metrics": val_metrics,
+                    "eval_protocol": args.eval_protocol,
                     "fold_sizes": {
                         "train": len(train_samples),
                         "val": len(val_samples),
@@ -242,13 +254,20 @@ def train_one_fold(
         loader=test_loader,
         criterion=criterion,
         device=device,
-        desc=f"Fold {fold_idx} independent test",
+        desc=f"Fold {fold_idx} {'benchmark test' if args.eval_protocol == 'test_as_val' else 'independent test'}",
         return_predictions=True,
     )
     save_predictions(fold_dir / "test_predictions.csv", test_predictions)
 
     fold_payload = {
         "fold": fold_idx,
+        "eval_protocol": args.eval_protocol,
+        "selection_set": "test.csv" if args.eval_protocol == "test_as_val" else "train.csv held-out fold",
+        "test_set_role": (
+            "model_selection_and_final_evaluation"
+            if args.eval_protocol == "test_as_val"
+            else "final_evaluation_only"
+        ),
         "best_epoch": best_epoch,
         "best_score": best_score,
         "best_model_path": str(best_model_path),
@@ -333,8 +352,10 @@ def main():
     args.data_dir = resolve_path(args.data_dir)
     args.output_dir = resolve_path(args.output_dir)
 
-    if args.folds < 2:
-        raise ValueError("--folds must be at least 2.")
+    if args.eval_protocol == "strict_cv" and args.folds < 2:
+        raise ValueError("--folds must be at least 2 for --eval_protocol strict_cv.")
+    if args.eval_protocol == "test_as_val" and args.folds < 1:
+        raise ValueError("--folds must be at least 1 for --eval_protocol test_as_val.")
     if args.epochs <= 0:
         raise ValueError("--epochs must be a positive integer.")
     if args.batch_size <= 0:
@@ -349,6 +370,7 @@ def main():
     print(f"tokenizer_dir: {args.tokenizer_dir}")
     print(f"data_dir: {args.data_dir}")
     print(f"output_dir: {args.output_dir}")
+    print(f"eval_protocol: {args.eval_protocol}")
     print(f"folds: {args.folds}")
     print(f"freeze_backbone: {args.freeze_backbone}")
     print(f"use_bpe_view: {args.use_bpe_view}")
@@ -373,15 +395,38 @@ def main():
     print("Data stats:")
     print(json.dumps(json_safe_metrics(data_stats), indent=2, ensure_ascii=False))
 
-    splitter = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=args.seed)
     fold_results = []
     indices = np.arange(len(cv_samples))
-    for fold_idx, (train_indices, val_indices) in enumerate(splitter.split(indices, labels), start=1):
-        fold_train = [cv_samples[int(index)] for index in train_indices]
-        fold_val = [cv_samples[int(index)] for index in val_indices]
+    if args.eval_protocol == "strict_cv":
+        split_iter = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=args.seed).split(indices, labels)
+        protocol_folds = [
+            (
+                fold_idx,
+                [cv_samples[int(index)] for index in train_indices],
+                [cv_samples[int(index)] for index in val_indices],
+            )
+            for fold_idx, (train_indices, val_indices) in enumerate(split_iter, start=1)
+        ]
+    elif args.folds == 1:
+        protocol_folds = [(1, cv_samples, independent_test_samples)]
+    else:
+        split_iter = StratifiedKFold(n_splits=args.folds, shuffle=True, random_state=args.seed).split(indices, labels)
+        protocol_folds = [
+            (
+                fold_idx,
+                [cv_samples[int(index)] for index in train_indices],
+                independent_test_samples,
+            )
+            for fold_idx, (train_indices, _unused_val_indices) in enumerate(split_iter, start=1)
+        ]
+
+    for fold_idx, fold_train, fold_val in protocol_folds:
+        selection_name = "test-as-val" if args.eval_protocol == "test_as_val" else "val"
         print(
             f"Fold {fold_idx}/{args.folds}: "
-            f"train={len(fold_train)} val={len(fold_val)} independent_test={len(independent_test_samples)}"
+            f"train={len(fold_train)} {selection_name}={len(fold_val)} "
+            f"{'benchmark_test' if args.eval_protocol == 'test_as_val' else 'independent_test'}="
+            f"{len(independent_test_samples)}"
         )
         fold_results.append(
             train_one_fold(
@@ -396,15 +441,21 @@ def main():
         )
 
     summary = summarize_folds(fold_results)
+    summary["eval_protocol"] = args.eval_protocol
     summary["data_stats"] = data_stats
     summary["args"] = {key: str(value) if isinstance(value, Path) else value for key, value in vars(args).items()}
     with (args.output_dir / "cv_summary.json").open("w", encoding="utf-8") as handle:
         json.dump(json_safe_metrics(summary), handle, indent=2, ensure_ascii=False)
     save_cv_summary_csv(args.output_dir / "cv_summary.csv", fold_results, summary)
 
-    print("5-fold independent test mean:")
+    summary_prefix = (
+        f"{args.folds}-run test-as-val benchmark"
+        if args.eval_protocol == "test_as_val"
+        else f"{args.folds}-fold independent test"
+    )
+    print(f"{summary_prefix} mean:")
     print(format_metrics(summary["independent_test_mean"]))
-    print("5-fold independent test std:")
+    print(f"{summary_prefix} std:")
     print(format_metrics(summary["independent_test_std"]))
     print(f"Saved CV outputs to: {args.output_dir}")
 
