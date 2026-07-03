@@ -13,8 +13,12 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v5_nuc_lora_no_center` | runnable | v2 ablation: BiRNA-BERT NUC + LoRA without explicit center-token pooling |
 | `v6a_bpe_global_nuc_local_film_lora` | runnable | BPE global -> FiLM -> NUC local window + LoRA |
 | `v6b_nuc_global_nuc_local_film_lora` | runnable | NUC global -> FiLM -> NUC local window + LoRA |
+| `v7a_nuc_global_nuc_full_mean_film_lora` | runnable | NUC global -> FiLM -> NUC full 41bp mean + LoRA |
+| `v7b_nuc_global_nuc_center_cnn_film_lora` | runnable | NUC global -> FiLM -> NUC center-window multi-scale CNN mean + LoRA |
+| `v7c_bpe_global_nuc_full_cnn_film_lora` | runnable | BPE global -> FiLM -> NUC full 41bp multi-scale CNN mean + LoRA |
+| `v7d_nuc_global_nuc_full_cnn_film_lora` | runnable | NUC global -> FiLM -> NUC full 41bp multi-scale CNN mean + LoRA |
 
-Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b are test-as-validation-only experiments by default.
+Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d are test-as-validation-only experiments by default.
 
 Benchmark aliases using test-as-validation are also runnable:
 
@@ -47,7 +51,11 @@ BiRNA_m6A/
 │   ├── v4_birna_bert_bpe_dual_view_lora/
 │   ├── v5_nuc_lora_no_center/
 │   ├── v6a_bpe_global_nuc_local_film_lora/
-│   └── v6b_nuc_global_nuc_local_film_lora/
+│   ├── v6b_nuc_global_nuc_local_film_lora/
+│   ├── v7a_nuc_global_nuc_full_mean_film_lora/
+│   ├── v7b_nuc_global_nuc_center_cnn_film_lora/
+│   ├── v7c_bpe_global_nuc_full_cnn_film_lora/
+│   └── v7d_nuc_global_nuc_full_cnn_film_lora/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -59,7 +67,11 @@ BiRNA_m6A/
 │   ├── v4_birna_bert_bpe_dual_view_lora/
 │   ├── v5_nuc_lora_no_center/
 │   ├── v6a_bpe_global_nuc_local_film_lora/
-│   └── v6b_nuc_global_nuc_local_film_lora/
+│   ├── v6b_nuc_global_nuc_local_film_lora/
+│   ├── v7a_nuc_global_nuc_full_mean_film_lora/
+│   ├── v7b_nuc_global_nuc_center_cnn_film_lora/
+│   ├── v7c_bpe_global_nuc_full_cnn_film_lora/
+│   └── v7d_nuc_global_nuc_full_cnn_film_lora/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -83,9 +95,13 @@ experiments/v4_birna_bert_bpe_dual_view_lora/config_v4.py
 experiments/v5_nuc_lora_no_center/config_v5.py
 experiments/v6a_bpe_global_nuc_local_film_lora/config_v6a.py
 experiments/v6b_nuc_global_nuc_local_film_lora/config_v6b.py
+experiments/v7a_nuc_global_nuc_full_mean_film_lora/config_v7a.py
+experiments/v7b_nuc_global_nuc_center_cnn_film_lora/config_v7b.py
+experiments/v7c_bpe_global_nuc_full_cnn_film_lora/config_v7c.py
+experiments/v7d_nuc_global_nuc_full_cnn_film_lora/config_v7d.py
 ```
 
-`configs/configarg.py` keeps the shared parameters currently needed by v1-v6: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, and LoRA settings. Version configs only override the small differences between methods.
+`configs/configarg.py` keeps the shared parameters currently needed by v1-v7: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, and LoRA settings. Version configs only override the small differences between methods.
 
 ## Run Experiments
 
@@ -128,7 +144,20 @@ FiLM global-local experiments use test-as-validation by default:
 ```bash
 python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_b --seed 42
 python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_b --seed 42
+python train.py --version v7a_nuc_global_nuc_full_mean_film_lora --dataset H_b --seed 42
+python train.py --version v7b_nuc_global_nuc_center_cnn_film_lora --dataset H_b --seed 42
+python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
+python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
 ```
+
+v7 comparison matrix:
+
+| Version | Global branch | Modulated NUC branch | CNN | Center window | Purpose |
+|---|---|---|---|---|---|
+| `v7a_nuc_global_nuc_full_mean_film_lora` | NUC mean | NUC full 41bp mean | no | no | Test whether removing the center window is useful |
+| `v7b_nuc_global_nuc_center_cnn_film_lora` | NUC mean | NUC center-window CNN mean | yes | yes | Test whether CNN helps when the center window is retained |
+| `v7c_bpe_global_nuc_full_cnn_film_lora` | BPE mean | NUC full 41bp CNN mean | yes | no | Test BPE global modulation of learnable NUC CNN |
+| `v7d_nuc_global_nuc_full_cnn_film_lora` | NUC mean | NUC full 41bp CNN mean | yes | no | Test NUC global modulation of learnable NUC CNN |
 
 Test-as-validation benchmark protocol:
 

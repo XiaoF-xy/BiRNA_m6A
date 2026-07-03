@@ -91,6 +91,22 @@ def parse_args():
         default=3,
         help="Radius around the center A for NUC local pooling. radius=3 uses positions 17:24 for 41bp input.",
     )
+    parser.add_argument(
+        "--film_nuc_pooling",
+        type=str,
+        choices=["center_mean", "full_mean", "center_cnn_mean", "full_cnn_mean"],
+        default="center_mean",
+        help=(
+            "NUC branch pooled after FiLM modulation. center_mean keeps v6 behavior; "
+            "full_mean removes the center window; *_cnn_mean adds a learnable multi-scale CNN before mean pooling."
+        ),
+    )
+    parser.add_argument(
+        "--cnn_kernel_sizes",
+        type=str,
+        default="3,5,7",
+        help="Comma-separated positive odd Conv1d kernel sizes for CNN FiLM NUC branch.",
+    )
     parser.add_argument("--use_lora", action="store_true")
     parser.add_argument("--lora_r", type=int, default=8)
     parser.add_argument("--lora_alpha", type=int, default=32)
@@ -102,6 +118,22 @@ def parse_args():
         help="Keep each fold's best_model.pt after evaluation. By default checkpoints are deleted to save disk space.",
     )
     return parser.parse_args()
+
+
+def parse_cnn_kernel_sizes(value: str) -> list[int]:
+    try:
+        kernels = [int(item.strip()) for item in value.split(",") if item.strip()]
+    except ValueError as exc:
+        raise ValueError(f"--cnn_kernel_sizes must be comma-separated integers, got: {value}") from exc
+    if not kernels:
+        raise ValueError("--cnn_kernel_sizes must contain at least one integer.")
+    invalid = [kernel for kernel in kernels if kernel <= 0 or kernel % 2 == 0]
+    if invalid:
+        raise ValueError(
+            "--cnn_kernel_sizes must contain only positive odd integers. "
+            f"Invalid values: {invalid}; full input: {value}"
+        )
+    return kernels
 
 
 def load_single_dataset_train_test(data_dir: Path) -> tuple[list[SequenceSample], list[SequenceSample], dict]:
@@ -190,6 +222,8 @@ def train_one_fold(
             **common_model_kwargs,
             film_global_view=args.film_global_view,
             local_window_radius=args.local_window_radius,
+            film_nuc_pooling=args.film_nuc_pooling,
+            cnn_kernel_sizes=args.cnn_kernel_sizes,
         )
     else:
         model_cls = BiRNADualViewClassifier if args.use_bpe_view else BiRNANucClassifier
@@ -414,6 +448,7 @@ def main():
         raise ValueError("--max_length must be at least 43 for 41 NUC tokens plus CLS/SEP.")
     if args.local_window_radius < 0:
         raise ValueError("--local_window_radius must be non-negative.")
+    args.cnn_kernel_sizes = parse_cnn_kernel_sizes(args.cnn_kernel_sizes)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     set_seed(args.seed)
@@ -432,6 +467,8 @@ def main():
     if args.use_film:
         print(f"film_global_view: {args.film_global_view}")
         print(f"local_window_radius: {args.local_window_radius}")
+        print(f"film_nuc_pooling: {args.film_nuc_pooling}")
+        print(f"cnn_kernel_sizes: {args.cnn_kernel_sizes}")
     print(f"use_lora: {args.use_lora}")
     print(f"keep_best_model: {args.keep_best_model}")
     if args.use_lora:

@@ -9,6 +9,9 @@ from model_birna_dual_view import mask_aware_mean_pool
 from model_birna_nuc import apply_lora_to_birna, load_birna_backbone
 
 
+FILM_NUC_POOLING_MODES = {"center_mean", "full_mean", "center_cnn_mean", "full_cnn_mean"}
+
+
 class FiLM(nn.Module):
     def __init__(self, input_dim: int, output_dim: int):
         super().__init__()
@@ -37,18 +40,30 @@ class BiRNAFiLMLocalClassifier(nn.Module):
         lora_alpha: int = 32,
         lora_dropout: float = 0.05,
         lora_target_modules: list[str] | None = None,
+        film_nuc_pooling: str = "center_mean",
+        cnn_kernel_sizes: list[int] | None = None,
     ):
         super().__init__()
         if film_global_view not in {"bpe", "nuc"}:
             raise ValueError(f"film_global_view must be 'bpe' or 'nuc', got: {film_global_view}")
+        if film_nuc_pooling not in FILM_NUC_POOLING_MODES:
+            supported = ", ".join(sorted(FILM_NUC_POOLING_MODES))
+            raise ValueError(f"film_nuc_pooling must be one of [{supported}], got: {film_nuc_pooling}")
         if local_window_radius < 0:
             raise ValueError(f"local_window_radius must be non-negative, got: {local_window_radius}")
+        cnn_kernel_sizes = cnn_kernel_sizes or [3, 5, 7]
+        if not cnn_kernel_sizes:
+            raise ValueError("cnn_kernel_sizes must contain at least one kernel size.")
+        if any(kernel <= 0 or kernel % 2 == 0 for kernel in cnn_kernel_sizes):
+            raise ValueError(f"cnn_kernel_sizes must be positive odd integers, got: {cnn_kernel_sizes}")
 
         self.birna_model = load_birna_backbone(model_dir)
         self.use_lora = use_lora
         self.center_index = center_index
         self.local_window_radius = local_window_radius
         self.film_global_view = film_global_view
+        self.film_nuc_pooling = film_nuc_pooling
+        self.cnn_kernel_sizes = cnn_kernel_sizes
         hidden_size = int(getattr(self.birna_model.config, "hidden_size", 768))
 
         if use_lora:
@@ -61,6 +76,24 @@ class BiRNAFiLMLocalClassifier(nn.Module):
             )
 
         self.film = FiLM(input_dim=hidden_size, output_dim=hidden_size)
+        if self._uses_cnn_branch:
+            self.cnn_layers = nn.ModuleList(
+                [
+                    nn.Conv1d(
+                        in_channels=hidden_size,
+                        out_channels=hidden_size,
+                        kernel_size=kernel_size,
+                        padding=kernel_size // 2,
+                    )
+                    for kernel_size in cnn_kernel_sizes
+                ]
+            )
+            self.cnn_activation = nn.GELU()
+            self.cnn_dropout = nn.Dropout(dropout)
+            self.cnn_projection = nn.Sequential(
+                nn.Linear(hidden_size * len(cnn_kernel_sizes), hidden_size),
+                nn.LayerNorm(hidden_size),
+            )
         self.classifier = nn.Sequential(
             nn.Linear(hidden_size * 2, 256),
             nn.ReLU(),
@@ -71,6 +104,14 @@ class BiRNAFiLMLocalClassifier(nn.Module):
         if freeze_backbone and not use_lora:
             for parameter in self.birna_model.parameters():
                 parameter.requires_grad = False
+
+    @property
+    def _uses_cnn_branch(self) -> bool:
+        return self.film_nuc_pooling in {"center_cnn_mean", "full_cnn_mean"}
+
+    @property
+    def _uses_center_window(self) -> bool:
+        return self.film_nuc_pooling in {"center_mean", "center_cnn_mean"}
 
     def _encode(
         self,
@@ -91,20 +132,52 @@ class BiRNAFiLMLocalClassifier(nn.Module):
     def _nuc_content_embeddings(self, nuc_emb: torch.Tensor, nuc_content_mask: torch.Tensor) -> torch.Tensor:
         token_counts = nuc_content_mask.sum(dim=1)
         expected_tokens = int(token_counts.min().item())
-        local_start = self.center_index - self.local_window_radius
-        local_end = self.center_index + self.local_window_radius + 1
-        if local_start < 0 or expected_tokens < local_end:
-            raise ValueError(
-                "BiRNA-BERT NUC output is too short for local FiLM pooling: "
-                f"min_content_token_count={expected_tokens}, local_window=[{local_start}, {local_end}). "
-                "Check NUC tokenization, sequence length, and max_length."
-            )
+        if expected_tokens <= 0:
+            raise ValueError("BiRNA-BERT NUC output has no non-special tokens. Check NUC tokenization.")
         if int(token_counts.max().item()) != expected_tokens:
             raise ValueError(
                 "FiLM local pooling expects fixed-length NUC content tokens within a batch. "
                 f"Observed min={expected_tokens}, max={int(token_counts.max().item())}."
             )
         return nuc_emb[:, 1 : 1 + expected_tokens, :]
+
+    def _center_window_bounds(self, token_count: int) -> tuple[int, int]:
+        local_start = self.center_index - self.local_window_radius
+        local_end = self.center_index + self.local_window_radius + 1
+        if local_start < 0 or token_count < local_end:
+            raise ValueError(
+                "BiRNA-BERT NUC output is too short for local FiLM pooling: "
+                f"content_token_count={token_count}, local_window=[{local_start}, {local_end}). "
+                "Check NUC tokenization, sequence length, max_length, and local_window_radius."
+            )
+        return local_start, local_end
+
+    def _pool_film_nuc_branch(self, nuc_token_emb: torch.Tensor) -> torch.Tensor:
+        token_count = nuc_token_emb.size(1)
+        if self.film_nuc_pooling == "full_mean":
+            return nuc_token_emb.mean(dim=1)
+
+        if self.film_nuc_pooling == "center_mean":
+            local_start, local_end = self._center_window_bounds(token_count)
+            return nuc_token_emb[:, local_start:local_end, :].mean(dim=1)
+
+        cnn_input = nuc_token_emb.transpose(1, 2)
+        cnn_features = [
+            conv_layer(cnn_input)
+            for conv_layer in self.cnn_layers
+        ]
+        cnn_map = torch.cat(cnn_features, dim=1)
+        cnn_map = self.cnn_activation(cnn_map)
+        cnn_map = self.cnn_dropout(cnn_map)
+
+        if self.film_nuc_pooling == "center_cnn_mean":
+            local_start, local_end = self._center_window_bounds(token_count)
+            pooled = cnn_map[:, :, local_start:local_end].mean(dim=2)
+        elif self.film_nuc_pooling == "full_cnn_mean":
+            pooled = cnn_map.mean(dim=2)
+        else:
+            raise ValueError(f"Unsupported film_nuc_pooling: {self.film_nuc_pooling}")
+        return self.cnn_projection(pooled)
 
     def forward(
         self,
@@ -126,9 +199,7 @@ class BiRNAFiLMLocalClassifier(nn.Module):
             token_type_ids=nuc_token_type_ids,
         )
         nuc_token_emb = self._nuc_content_embeddings(nuc_emb, nuc_content_mask)
-        local_start = self.center_index - self.local_window_radius
-        local_end = self.center_index + self.local_window_radius + 1
-        h_local = nuc_token_emb[:, local_start:local_end, :].mean(dim=1)
+        h_local = self._pool_film_nuc_branch(nuc_token_emb)
 
         if self.film_global_view == "bpe":
             if bpe_input_ids is None or bpe_content_mask is None:

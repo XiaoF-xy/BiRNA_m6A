@@ -10,9 +10,13 @@ v4_birna_bert_bpe_dual_view_lora = BiRNA-BERT NUC + BPE dual view + LoRA
 v5_nuc_lora_no_center         = v2 消融：NUC + LoRA，不使用显式中心位点 pooling
 v6a_bpe_global_nuc_local_film_lora = BPE global -> FiLM -> NUC local + LoRA
 v6b_nuc_global_nuc_local_film_lora = NUC global -> FiLM -> NUC local + LoRA
+v7a_nuc_global_nuc_full_mean_film_lora = NUC global -> FiLM -> NUC full 41bp mean + LoRA
+v7b_nuc_global_nuc_center_cnn_film_lora = NUC global -> FiLM -> NUC center-window CNN mean + LoRA
+v7c_bpe_global_nuc_full_cnn_film_lora = BPE global -> FiLM -> NUC full 41bp CNN mean + LoRA
+v7d_nuc_global_nuc_full_cnn_film_lora = NUC global -> FiLM -> NUC full 41bp CNN mean + LoRA
 ```
 
-v1-v5 有两套评估协议；v6a/v6b 默认只使用 test_as_val：
+v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d 默认只使用 test_as_val：
 
 ```text
 strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
@@ -339,6 +343,58 @@ global view -> FiLM -> local view
 
 当前暂时不加入 MoE experts 和 gating，目的是先验证 FiLM/global-local 机制是否有效。如果 v6a/v6b 有稳定提升，再考虑后续版本加入 MoE。
 
+## v7: FiLM NUC 分支消融与 CNN 消融
+
+v7 系列都默认使用 test-as-val 对标协议、LoRA(Wqkv)、ACC 选择 best epoch，并在训练结束后删除 `best_model.pt`。
+
+| 版本 | global | 被调制分支 | CNN | 中心窗口 | 目的 |
+|---|---|---|---|---|---|
+| `v7a_nuc_global_nuc_full_mean_film_lora` | NUC mean | NUC full 41bp mean | 否 | 否 | 验证去掉中心窗口是否有用 |
+| `v7b_nuc_global_nuc_center_cnn_film_lora` | NUC mean | NUC center-window CNN mean | 是 | 是 | 验证保留中心窗口时 CNN 是否优于普通 mean |
+| `v7c_bpe_global_nuc_full_cnn_film_lora` | BPE mean | NUC full 41bp CNN mean | 是 | 否 | 验证 BPE global 调制可学习 NUC CNN 是否有用 |
+| `v7d_nuc_global_nuc_full_cnn_film_lora` | NUC mean | NUC full 41bp CNN mean | 是 | 否 | 验证 NUC global 调制可学习 NUC CNN 是否有用 |
+
+v7a 运行：
+
+```bash
+python train.py --version v7a_nuc_global_nuc_full_mean_film_lora --dataset H_b --seed 42
+```
+
+v7b 运行：
+
+```bash
+python train.py --version v7b_nuc_global_nuc_center_cnn_film_lora --dataset H_b --seed 42
+```
+
+v7c 运行：
+
+```bash
+python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
+```
+
+v7d 运行：
+
+```bash
+python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
+```
+
+两张卡并行示例：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
+```
+
+v7 主要对照逻辑：
+
+```text
+v6b vs v7a: 中心窗口是否必要
+v6b vs v7b: 中心窗口内 CNN 是否优于 mean
+v7a vs v7d: 去掉中心窗口后，全 41bp CNN 是否优于全 41bp mean
+v7b vs v7d: CNN 使用中心窗口还是全 41bp 更好
+v7c vs v7d: BPE global 和 NUC global 哪个更适合 FiLM 调制
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -424,4 +480,8 @@ python train.py --version v5_nuc_lora_no_center --dataset H_b --seed 42 --dry_ru
 python train.py --version v5_nuc_lora_no_center_test_as_val --dataset H_b --seed 42 --dry_run
 python train.py --version v6a_bpe_global_nuc_local_film_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v6b_nuc_global_nuc_local_film_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v7a_nuc_global_nuc_full_mean_film_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v7b_nuc_global_nuc_center_cnn_film_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42 --dry_run
 ```

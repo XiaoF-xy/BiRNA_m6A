@@ -35,11 +35,19 @@ BASE_VERSION_CONFIG_MODULES = {
     "v5_nuc_lora_no_center": "experiments.v5_nuc_lora_no_center.config_v5",
     "v6a_bpe_global_nuc_local_film_lora": "experiments.v6a_bpe_global_nuc_local_film_lora.config_v6a",
     "v6b_nuc_global_nuc_local_film_lora": "experiments.v6b_nuc_global_nuc_local_film_lora.config_v6b",
+    "v7a_nuc_global_nuc_full_mean_film_lora": "experiments.v7a_nuc_global_nuc_full_mean_film_lora.config_v7a",
+    "v7b_nuc_global_nuc_center_cnn_film_lora": "experiments.v7b_nuc_global_nuc_center_cnn_film_lora.config_v7b",
+    "v7c_bpe_global_nuc_full_cnn_film_lora": "experiments.v7c_bpe_global_nuc_full_cnn_film_lora.config_v7c",
+    "v7d_nuc_global_nuc_full_cnn_film_lora": "experiments.v7d_nuc_global_nuc_full_cnn_film_lora.config_v7d",
 }
 
 TEST_AS_VAL_ONLY_VERSIONS = {
     "v6a_bpe_global_nuc_local_film_lora",
     "v6b_nuc_global_nuc_local_film_lora",
+    "v7a_nuc_global_nuc_full_mean_film_lora",
+    "v7b_nuc_global_nuc_center_cnn_film_lora",
+    "v7c_bpe_global_nuc_full_cnn_film_lora",
+    "v7d_nuc_global_nuc_full_cnn_film_lora",
 }
 
 TEST_AS_VAL_ALIASES = {
@@ -85,6 +93,8 @@ class ModelConfig:
     use_film: bool = False
     film_global_view: str = "bpe"
     local_window_radius: int = 3
+    film_nuc_pooling: str = "center_mean"
+    cnn_kernel_sizes: list[int] = field(default_factory=lambda: [3, 5, 7])
     use_lora: bool = False
     lora_r: int = 8
     lora_alpha: int = 32

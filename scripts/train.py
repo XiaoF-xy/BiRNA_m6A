@@ -81,6 +81,10 @@ def build_cv_command(config) -> list[str]:
             model.film_global_view,
             "--local_window_radius",
             str(model.local_window_radius),
+            "--film_nuc_pooling",
+            model.film_nuc_pooling,
+            "--cnn_kernel_sizes",
+            ",".join(str(kernel) for kernel in model.cnn_kernel_sizes),
         ])
     if model.use_lora:
         command.extend([
