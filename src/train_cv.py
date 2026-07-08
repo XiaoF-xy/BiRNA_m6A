@@ -94,11 +94,12 @@ def parse_args():
     parser.add_argument(
         "--film_nuc_pooling",
         type=str,
-        choices=["center_mean", "full_mean", "center_cnn_mean", "full_cnn_mean"],
+        choices=["center_mean", "full_mean", "center_cnn_mean", "full_cnn_mean", "full_mean_center_cnn_mean"],
         default="center_mean",
         help=(
             "NUC branch pooled after FiLM modulation. center_mean keeps v6 behavior; "
-            "full_mean removes the center window; *_cnn_mean adds a learnable multi-scale CNN before mean pooling."
+            "full_mean removes the center window; *_cnn_mean adds a learnable multi-scale CNN before mean pooling; "
+            "full_mean_center_cnn_mean fuses full 41bp mean and center-window CNN branches."
         ),
     )
     parser.add_argument(

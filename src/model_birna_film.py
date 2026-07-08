@@ -9,7 +9,13 @@ from model_birna_dual_view import mask_aware_mean_pool
 from model_birna_nuc import apply_lora_to_birna, load_birna_backbone
 
 
-FILM_NUC_POOLING_MODES = {"center_mean", "full_mean", "center_cnn_mean", "full_cnn_mean"}
+FILM_NUC_POOLING_MODES = {
+    "center_mean",
+    "full_mean",
+    "center_cnn_mean",
+    "full_cnn_mean",
+    "full_mean_center_cnn_mean",
+}
 
 
 class FiLM(nn.Module):
@@ -75,7 +81,6 @@ class BiRNAFiLMLocalClassifier(nn.Module):
                 dropout=lora_dropout,
             )
 
-        self.film = FiLM(input_dim=hidden_size, output_dim=hidden_size)
         if self._uses_cnn_branch:
             self.cnn_layers = nn.ModuleList(
                 [
@@ -94,8 +99,15 @@ class BiRNAFiLMLocalClassifier(nn.Module):
                 nn.Linear(hidden_size * len(cnn_kernel_sizes), hidden_size),
                 nn.LayerNorm(hidden_size),
             )
+        if self._uses_dual_local_branch:
+            self.full_film = FiLM(input_dim=hidden_size, output_dim=hidden_size)
+            self.center_cnn_film = FiLM(input_dim=hidden_size, output_dim=hidden_size)
+            classifier_input_size = hidden_size * 3
+        else:
+            self.film = FiLM(input_dim=hidden_size, output_dim=hidden_size)
+            classifier_input_size = hidden_size * 2
         self.classifier = nn.Sequential(
-            nn.Linear(hidden_size * 2, 256),
+            nn.Linear(classifier_input_size, 256),
             nn.ReLU(),
             nn.Dropout(dropout),
             nn.Linear(256, 2),
@@ -107,11 +119,19 @@ class BiRNAFiLMLocalClassifier(nn.Module):
 
     @property
     def _uses_cnn_branch(self) -> bool:
-        return self.film_nuc_pooling in {"center_cnn_mean", "full_cnn_mean"}
+        return self.film_nuc_pooling in {
+            "center_cnn_mean",
+            "full_cnn_mean",
+            "full_mean_center_cnn_mean",
+        }
 
     @property
     def _uses_center_window(self) -> bool:
-        return self.film_nuc_pooling in {"center_mean", "center_cnn_mean"}
+        return self.film_nuc_pooling in {"center_mean", "center_cnn_mean", "full_mean_center_cnn_mean"}
+
+    @property
+    def _uses_dual_local_branch(self) -> bool:
+        return self.film_nuc_pooling == "full_mean_center_cnn_mean"
 
     def _encode(
         self,
@@ -152,6 +172,20 @@ class BiRNAFiLMLocalClassifier(nn.Module):
             )
         return local_start, local_end
 
+    def _cnn_feature_map(self, nuc_token_emb: torch.Tensor) -> torch.Tensor:
+        cnn_input = nuc_token_emb.transpose(1, 2)
+        cnn_features = [conv_layer(cnn_input) for conv_layer in self.cnn_layers]
+        cnn_map = torch.cat(cnn_features, dim=1)
+        cnn_map = self.cnn_activation(cnn_map)
+        return self.cnn_dropout(cnn_map)
+
+    def _pool_center_cnn_branch(self, nuc_token_emb: torch.Tensor) -> torch.Tensor:
+        token_count = nuc_token_emb.size(1)
+        local_start, local_end = self._center_window_bounds(token_count)
+        cnn_map = self._cnn_feature_map(nuc_token_emb)
+        pooled = cnn_map[:, :, local_start:local_end].mean(dim=2)
+        return self.cnn_projection(pooled)
+
     def _pool_film_nuc_branch(self, nuc_token_emb: torch.Tensor) -> torch.Tensor:
         token_count = nuc_token_emb.size(1)
         if self.film_nuc_pooling == "full_mean":
@@ -161,19 +195,10 @@ class BiRNAFiLMLocalClassifier(nn.Module):
             local_start, local_end = self._center_window_bounds(token_count)
             return nuc_token_emb[:, local_start:local_end, :].mean(dim=1)
 
-        cnn_input = nuc_token_emb.transpose(1, 2)
-        cnn_features = [
-            conv_layer(cnn_input)
-            for conv_layer in self.cnn_layers
-        ]
-        cnn_map = torch.cat(cnn_features, dim=1)
-        cnn_map = self.cnn_activation(cnn_map)
-        cnn_map = self.cnn_dropout(cnn_map)
-
         if self.film_nuc_pooling == "center_cnn_mean":
-            local_start, local_end = self._center_window_bounds(token_count)
-            pooled = cnn_map[:, :, local_start:local_end].mean(dim=2)
+            return self._pool_center_cnn_branch(nuc_token_emb)
         elif self.film_nuc_pooling == "full_cnn_mean":
+            cnn_map = self._cnn_feature_map(nuc_token_emb)
             pooled = cnn_map.mean(dim=2)
         else:
             raise ValueError(f"Unsupported film_nuc_pooling: {self.film_nuc_pooling}")
@@ -199,7 +224,6 @@ class BiRNAFiLMLocalClassifier(nn.Module):
             token_type_ids=nuc_token_type_ids,
         )
         nuc_token_emb = self._nuc_content_embeddings(nuc_emb, nuc_content_mask)
-        h_local = self._pool_film_nuc_branch(nuc_token_emb)
 
         if self.film_global_view == "bpe":
             if bpe_input_ids is None or bpe_content_mask is None:
@@ -215,7 +239,18 @@ class BiRNAFiLMLocalClassifier(nn.Module):
         else:
             h_global = mask_aware_mean_pool(nuc_emb, nuc_content_mask)
 
-        gamma, beta = self.film(h_global)
-        h_mod = gamma * h_local + beta
-        feat = torch.cat([h_global, h_mod], dim=1)
+        if self._uses_dual_local_branch:
+            h_full = nuc_token_emb.mean(dim=1)
+            h_center_cnn = self._pool_center_cnn_branch(nuc_token_emb)
+
+            gamma_full, beta_full = self.full_film(h_global)
+            gamma_center, beta_center = self.center_cnn_film(h_global)
+            h_full_mod = gamma_full * h_full + beta_full
+            h_center_mod = gamma_center * h_center_cnn + beta_center
+            feat = torch.cat([h_global, h_full_mod, h_center_mod], dim=1)
+        else:
+            h_local = self._pool_film_nuc_branch(nuc_token_emb)
+            gamma, beta = self.film(h_global)
+            h_mod = gamma * h_local + beta
+            feat = torch.cat([h_global, h_mod], dim=1)
         return self.classifier(feat)

@@ -39,6 +39,7 @@ BASE_VERSION_CONFIG_MODULES = {
     "v7b_nuc_global_nuc_center_cnn_film_lora": "experiments.v7b_nuc_global_nuc_center_cnn_film_lora.config_v7b",
     "v7c_bpe_global_nuc_full_cnn_film_lora": "experiments.v7c_bpe_global_nuc_full_cnn_film_lora.config_v7c",
     "v7d_nuc_global_nuc_full_cnn_film_lora": "experiments.v7d_nuc_global_nuc_full_cnn_film_lora.config_v7d",
+    "v8_nuc_full_mean_center_cnn_film_lora": "experiments.v8_nuc_full_mean_center_cnn_film_lora.config_v8",
 }
 
 TEST_AS_VAL_ONLY_VERSIONS = {
@@ -48,6 +49,7 @@ TEST_AS_VAL_ONLY_VERSIONS = {
     "v7b_nuc_global_nuc_center_cnn_film_lora",
     "v7c_bpe_global_nuc_full_cnn_film_lora",
     "v7d_nuc_global_nuc_full_cnn_film_lora",
+    "v8_nuc_full_mean_center_cnn_film_lora",
 }
 
 TEST_AS_VAL_ALIASES = {

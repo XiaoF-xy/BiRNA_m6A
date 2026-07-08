@@ -14,9 +14,10 @@ v7a_nuc_global_nuc_full_mean_film_lora = NUC global -> FiLM -> NUC full 41bp mea
 v7b_nuc_global_nuc_center_cnn_film_lora = NUC global -> FiLM -> NUC center-window CNN mean + LoRA
 v7c_bpe_global_nuc_full_cnn_film_lora = BPE global -> FiLM -> NUC full 41bp CNN mean + LoRA
 v7d_nuc_global_nuc_full_cnn_film_lora = NUC global -> FiLM -> NUC full 41bp CNN mean + LoRA
+v8_nuc_full_mean_center_cnn_film_lora = NUC global -> FiLM -> NUC full mean + center-window CNN fusion + LoRA
 ```
 
-v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d 默认只使用 test_as_val：
+v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8 默认只使用 test_as_val：
 
 ```text
 strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
@@ -395,6 +396,52 @@ v7b vs v7d: CNN 使用中心窗口还是全 41bp 更好
 v7c vs v7d: BPE global 和 NUC global 哪个更适合 FiLM 调制
 ```
 
+## v8: v7a + v7b feature fusion
+
+v8 用于验证 v7a 和 v7b 的互补性：
+
+```text
+NUC global      = BiRNA-BERT NUC tokenization + mask-aware mean pooling
+NUC full mean   = full 41bp NUC token embedding mean
+NUC center CNN  = multi-scale Conv1d(kernel=3,5,7) + center window 17:24 mean
+FiLM full       = gamma_full, beta_full = MLP(NUC global)
+FiLM center CNN = gamma_center, beta_center = MLP(NUC global)
+Fusion          = concat([NUC global, FiLM(full mean), FiLM(center CNN)])
+LoRA            = Wqkv
+```
+
+该版本默认使用 test-as-val 对标协议、LoRA(Wqkv)、ACC 选择 best epoch，并在训练结束后删除 `best_model.pt`。
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42
+```
+
+运行人类三个数据集：
+
+```bash
+python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42
+python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_k --seed 42
+python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_l --seed 42
+```
+
+三张卡并行示例：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_l --seed 42
+```
+
+v8 对照逻辑：
+
+```text
+v7a vs v8: 加入中心窗口 CNN 分支是否提升 MCC/F1/Recall
+v7b vs v8: 保留全长 mean 分支是否提升 ACC/AUC/AUPRC 稳定性
+v7d vs v8: 全长 CNN 和中心 CNN 哪个更适合与全长 mean 融合
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -484,4 +531,5 @@ python train.py --version v7a_nuc_global_nuc_full_mean_film_lora --dataset H_b -
 python train.py --version v7b_nuc_global_nuc_center_cnn_film_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42 --dry_run
 ```

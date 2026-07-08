@@ -17,8 +17,9 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v7b_nuc_global_nuc_center_cnn_film_lora` | runnable | NUC global -> FiLM -> NUC center-window multi-scale CNN mean + LoRA |
 | `v7c_bpe_global_nuc_full_cnn_film_lora` | runnable | BPE global -> FiLM -> NUC full 41bp multi-scale CNN mean + LoRA |
 | `v7d_nuc_global_nuc_full_cnn_film_lora` | runnable | NUC global -> FiLM -> NUC full 41bp multi-scale CNN mean + LoRA |
+| `v8_nuc_full_mean_center_cnn_film_lora` | runnable | NUC global -> FiLM -> fused NUC full mean and center-window CNN branches + LoRA |
 
-Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d are test-as-validation-only experiments by default.
+Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d/v8 are test-as-validation-only experiments by default.
 
 Benchmark aliases using test-as-validation are also runnable:
 
@@ -55,7 +56,8 @@ BiRNA_m6A/
 │   ├── v7a_nuc_global_nuc_full_mean_film_lora/
 │   ├── v7b_nuc_global_nuc_center_cnn_film_lora/
 │   ├── v7c_bpe_global_nuc_full_cnn_film_lora/
-│   └── v7d_nuc_global_nuc_full_cnn_film_lora/
+│   ├── v7d_nuc_global_nuc_full_cnn_film_lora/
+│   └── v8_nuc_full_mean_center_cnn_film_lora/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -71,7 +73,8 @@ BiRNA_m6A/
 │   ├── v7a_nuc_global_nuc_full_mean_film_lora/
 │   ├── v7b_nuc_global_nuc_center_cnn_film_lora/
 │   ├── v7c_bpe_global_nuc_full_cnn_film_lora/
-│   └── v7d_nuc_global_nuc_full_cnn_film_lora/
+│   ├── v7d_nuc_global_nuc_full_cnn_film_lora/
+│   └── v8_nuc_full_mean_center_cnn_film_lora/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -99,9 +102,10 @@ experiments/v7a_nuc_global_nuc_full_mean_film_lora/config_v7a.py
 experiments/v7b_nuc_global_nuc_center_cnn_film_lora/config_v7b.py
 experiments/v7c_bpe_global_nuc_full_cnn_film_lora/config_v7c.py
 experiments/v7d_nuc_global_nuc_full_cnn_film_lora/config_v7d.py
+experiments/v8_nuc_full_mean_center_cnn_film_lora/config_v8.py
 ```
 
-`configs/configarg.py` keeps the shared parameters currently needed by v1-v7: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, and LoRA settings. Version configs only override the small differences between methods.
+`configs/configarg.py` keeps the shared parameters currently needed by v1-v8: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, and LoRA settings. Version configs only override the small differences between methods.
 
 ## Run Experiments
 
@@ -148,6 +152,7 @@ python train.py --version v7a_nuc_global_nuc_full_mean_film_lora --dataset H_b -
 python train.py --version v7b_nuc_global_nuc_center_cnn_film_lora --dataset H_b --seed 42
 python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
 python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
+python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42
 ```
 
 v7 comparison matrix:
@@ -158,6 +163,9 @@ v7 comparison matrix:
 | `v7b_nuc_global_nuc_center_cnn_film_lora` | NUC mean | NUC center-window CNN mean | yes | yes | Test whether CNN helps when the center window is retained |
 | `v7c_bpe_global_nuc_full_cnn_film_lora` | BPE mean | NUC full 41bp CNN mean | yes | no | Test BPE global modulation of learnable NUC CNN |
 | `v7d_nuc_global_nuc_full_cnn_film_lora` | NUC mean | NUC full 41bp CNN mean | yes | no | Test NUC global modulation of learnable NUC CNN |
+| `v8_nuc_full_mean_center_cnn_film_lora` | NUC mean | NUC full mean + center-window CNN mean | yes | partial | Fuse v7a full-length stability with v7b center-window CNN sensitivity |
+
+v8 is the first fusion version after the v7 ablations. It keeps NUC global as the FiLM controller, builds two modulated local branches in parallel, and classifies `concat([h_global, h_full_mod, h_center_cnn_mod])`.
 
 Test-as-validation benchmark protocol:
 
