@@ -5,6 +5,13 @@ import numpy as np
 
 BASES = ("A", "C", "G", "T")
 BASE_TO_INDEX = {base: index for index, base in enumerate(BASES)}
+SUPPORTED_FEATURES = ("onehot", "ncp", "eiip", "enac")
+FEATURE_CHANNELS = {
+    "onehot": 4,
+    "ncp": 3,
+    "eiip": 1,
+    "enac": 4,
+}
 
 NCP_VALUES = {
     "A": (1.0, 1.0, 1.0),
@@ -51,17 +58,43 @@ def enac_encode(sequence: str, window_size: int = 5) -> np.ndarray:
     return features
 
 
-def handcrafted_feature_matrix(sequence: str, enac_window_size: int = 5) -> np.ndarray:
+def parse_feature_names(feature_names: str | list[str] | tuple[str, ...] | None) -> list[str]:
+    if feature_names is None:
+        return list(SUPPORTED_FEATURES)
+    if isinstance(feature_names, str):
+        parsed = [item.strip().lower() for item in feature_names.split(",") if item.strip()]
+    else:
+        parsed = [str(item).strip().lower() for item in feature_names if str(item).strip()]
+    if not parsed:
+        raise ValueError("At least one handcrafted feature must be selected.")
+    invalid = [name for name in parsed if name not in SUPPORTED_FEATURES]
+    if invalid:
+        supported = ", ".join(SUPPORTED_FEATURES)
+        raise ValueError(f"Unsupported handcrafted feature(s): {invalid}. Supported features: {supported}")
+    duplicates = sorted({name for name in parsed if parsed.count(name) > 1})
+    if duplicates:
+        raise ValueError(f"Duplicate handcrafted feature(s): {duplicates}")
+    return parsed
+
+
+def handcrafted_channel_count(feature_names: str | list[str] | tuple[str, ...] | None = None) -> int:
+    return sum(FEATURE_CHANNELS[name] for name in parse_feature_names(feature_names))
+
+
+def handcrafted_feature_matrix(
+    sequence: str,
+    enac_window_size: int = 5,
+    feature_names: str | list[str] | tuple[str, ...] | None = None,
+) -> np.ndarray:
     sequence = _normalize_sequence(sequence)
-    return np.concatenate(
-        [
-            onehot_encode(sequence),
-            ncp_encode(sequence),
-            eiip_encode(sequence),
-            enac_encode(sequence, window_size=enac_window_size),
-        ],
-        axis=0,
-    ).astype(np.float32)
+    encoders = {
+        "onehot": lambda: onehot_encode(sequence),
+        "ncp": lambda: ncp_encode(sequence),
+        "eiip": lambda: eiip_encode(sequence),
+        "enac": lambda: enac_encode(sequence, window_size=enac_window_size),
+    }
+    selected_features = [encoders[name]() for name in parse_feature_names(feature_names)]
+    return np.concatenate(selected_features, axis=0).astype(np.float32)
 
 
 def _normalize_sequence(sequence: str) -> str:

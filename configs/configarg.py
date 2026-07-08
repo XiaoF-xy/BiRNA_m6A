@@ -41,6 +41,11 @@ BASE_VERSION_CONFIG_MODULES = {
     "v7d_nuc_global_nuc_full_cnn_film_lora": "experiments.v7d_nuc_global_nuc_full_cnn_film_lora.config_v7d",
     "v8_nuc_full_mean_center_cnn_film_lora": "experiments.v8_nuc_full_mean_center_cnn_film_lora.config_v8",
     "v9a_birna_v7b_handcrafted_multiscale_cnn": "experiments.v9a_birna_v7b_handcrafted_multiscale_cnn.config_v9a",
+    "v9b_no_enac_handcrafted_ablation": "experiments.v9b_no_enac_handcrafted_ablation.config_v9b",
+    "v9c_onehot_handcrafted_ablation": "experiments.v9c_onehot_handcrafted_ablation.config_v9c",
+    "v9d_ncp_eiip_handcrafted_ablation": "experiments.v9d_ncp_eiip_handcrafted_ablation.config_v9d",
+    "v9e_enac_handcrafted_ablation": "experiments.v9e_enac_handcrafted_ablation.config_v9e",
+    "v9f_handcrafted_only": "experiments.v9f_handcrafted_only.config_v9f",
 }
 
 TEST_AS_VAL_ONLY_VERSIONS = {
@@ -52,6 +57,11 @@ TEST_AS_VAL_ONLY_VERSIONS = {
     "v7d_nuc_global_nuc_full_cnn_film_lora",
     "v8_nuc_full_mean_center_cnn_film_lora",
     "v9a_birna_v7b_handcrafted_multiscale_cnn",
+    "v9b_no_enac_handcrafted_ablation",
+    "v9c_onehot_handcrafted_ablation",
+    "v9d_ncp_eiip_handcrafted_ablation",
+    "v9e_enac_handcrafted_ablation",
+    "v9f_handcrafted_only",
 }
 
 TEST_AS_VAL_ALIASES = {
@@ -105,6 +115,8 @@ class ModelConfig:
     lora_dropout: float = 0.05
     lora_target_modules: list[str] = field(default_factory=lambda: ["Wqkv"])
     use_handcrafted_features: bool = False
+    handcrafted_feature_names: list[str] = field(default_factory=lambda: ["onehot", "ncp", "eiip", "enac"])
+    handcrafted_only: bool = False
     handcrafted_cnn_channels: int = 64
     handcrafted_output_dim: int = 128
 

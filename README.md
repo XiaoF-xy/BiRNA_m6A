@@ -19,8 +19,13 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v7d_nuc_global_nuc_full_cnn_film_lora` | runnable | NUC global -> FiLM -> NUC full 41bp multi-scale CNN mean + LoRA |
 | `v8_nuc_full_mean_center_cnn_film_lora` | runnable | NUC global -> FiLM -> fused NUC full mean and center-window CNN branches + LoRA |
 | `v9a_birna_v7b_handcrafted_multiscale_cnn` | runnable | v7b BiRNA-BERT FiLM branch + 12-channel handcrafted physicochemical multi-scale CNN branch |
+| `v9b_no_enac_handcrafted_ablation` | runnable | v9a without ENAC: ONEHOT+NCP+EIIP handcrafted branch |
+| `v9c_onehot_handcrafted_ablation` | runnable | v9a with ONEHOT-only handcrafted branch |
+| `v9d_ncp_eiip_handcrafted_ablation` | runnable | v9a with NCP+EIIP physicochemical handcrafted branch |
+| `v9e_enac_handcrafted_ablation` | runnable | v9a with ENAC-only handcrafted branch |
+| `v9f_handcrafted_only` | runnable | handcrafted-only baseline without BiRNA-BERT, FiLM, or LoRA |
 
-Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a are test-as-validation-only experiments by default.
+Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f are test-as-validation-only experiments by default.
 
 Benchmark aliases using test-as-validation are also runnable:
 
@@ -59,7 +64,12 @@ BiRNA_m6A/
 │   ├── v7c_bpe_global_nuc_full_cnn_film_lora/
 │   ├── v7d_nuc_global_nuc_full_cnn_film_lora/
 │   ├── v8_nuc_full_mean_center_cnn_film_lora/
-│   └── v9a_birna_v7b_handcrafted_multiscale_cnn/
+│   ├── v9a_birna_v7b_handcrafted_multiscale_cnn/
+│   ├── v9b_no_enac_handcrafted_ablation/
+│   ├── v9c_onehot_handcrafted_ablation/
+│   ├── v9d_ncp_eiip_handcrafted_ablation/
+│   ├── v9e_enac_handcrafted_ablation/
+│   └── v9f_handcrafted_only/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -77,7 +87,12 @@ BiRNA_m6A/
 │   ├── v7c_bpe_global_nuc_full_cnn_film_lora/
 │   ├── v7d_nuc_global_nuc_full_cnn_film_lora/
 │   ├── v8_nuc_full_mean_center_cnn_film_lora/
-│   └── v9a_birna_v7b_handcrafted_multiscale_cnn/
+│   ├── v9a_birna_v7b_handcrafted_multiscale_cnn/
+│   ├── v9b_no_enac_handcrafted_ablation/
+│   ├── v9c_onehot_handcrafted_ablation/
+│   ├── v9d_ncp_eiip_handcrafted_ablation/
+│   ├── v9e_enac_handcrafted_ablation/
+│   └── v9f_handcrafted_only/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -107,9 +122,14 @@ experiments/v7c_bpe_global_nuc_full_cnn_film_lora/config_v7c.py
 experiments/v7d_nuc_global_nuc_full_cnn_film_lora/config_v7d.py
 experiments/v8_nuc_full_mean_center_cnn_film_lora/config_v8.py
 experiments/v9a_birna_v7b_handcrafted_multiscale_cnn/config_v9a.py
+experiments/v9b_no_enac_handcrafted_ablation/config_v9b.py
+experiments/v9c_onehot_handcrafted_ablation/config_v9c.py
+experiments/v9d_ncp_eiip_handcrafted_ablation/config_v9d.py
+experiments/v9e_enac_handcrafted_ablation/config_v9e.py
+experiments/v9f_handcrafted_only/config_v9f.py
 ```
 
-`configs/configarg.py` keeps the shared parameters currently needed by v1-v9a: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, handcrafted-feature switch, and LoRA settings. Version configs only override the small differences between methods.
+`configs/configarg.py` keeps the shared parameters currently needed by v1-v9f: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, handcrafted-feature switch, handcrafted feature subset, handcrafted-only switch, and LoRA settings. Version configs only override the small differences between methods.
 
 ## Run Experiments
 
@@ -158,6 +178,11 @@ python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --
 python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42
 python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42
 python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_b --seed 42
+python train.py --version v9b_no_enac_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9c_onehot_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9d_ncp_eiip_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9e_enac_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9f_handcrafted_only --dataset H_b --seed 42
 ```
 
 v7 comparison matrix:
@@ -181,6 +206,16 @@ ONEHOT/NCP/EIIP/ENAC -> 12-channel handcrafted features -> multi-scale CNN
 ```
 
 Use v9a to test whether explicit nucleotide identity, chemical properties, EIIP, and local composition add information beyond BiRNA-BERT v7b.
+
+v9b-v9f are handcrafted branch ablations:
+
+| Version | BiRNA branch | Handcrafted branch | Purpose |
+|---|---|---|---|
+| `v9b_no_enac_handcrafted_ablation` | v7b | ONEHOT+NCP+EIIP | Test whether ENAC is necessary |
+| `v9c_onehot_handcrafted_ablation` | v7b | ONEHOT only | Test whether base identity explains the gain |
+| `v9d_ncp_eiip_handcrafted_ablation` | v7b | NCP+EIIP only | Test whether physicochemical attributes contribute |
+| `v9e_enac_handcrafted_ablation` | v7b | ENAC only | Test whether local composition contributes |
+| `v9f_handcrafted_only` | none | ONEHOT+NCP+EIIP+ENAC | Test handcrafted features without BiRNA-BERT |
 
 Test-as-validation benchmark protocol:
 

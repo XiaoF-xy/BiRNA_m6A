@@ -16,7 +16,8 @@ from torch.utils.data import DataLoader
 from dataset_utils import SequenceSample, read_samples_from_file
 from metrics_utils import format_metrics, json_safe_metrics
 from model_birna_dual_view import BiRNADualViewClassifier
-from model_birna_film import BiRNAFiLMHandcraftedClassifier, BiRNAFiLMLocalClassifier
+from handcrafted_features import handcrafted_channel_count, parse_feature_names
+from model_birna_film import BiRNAFiLMHandcraftedClassifier, BiRNAFiLMLocalClassifier, HandcraftedOnlyClassifier
 from model_birna_nuc import BiRNANucClassifier, load_birna_tokenizer
 from training_utils import (
     DualViewDataCollator,
@@ -114,6 +115,17 @@ def parse_args():
     parser.add_argument("--lora_dropout", type=float, default=0.05)
     parser.add_argument("--lora_target_modules", type=str, default="Wqkv")
     parser.add_argument("--use_handcrafted_features", action="store_true")
+    parser.add_argument(
+        "--handcrafted_feature_names",
+        type=str,
+        default="onehot,ncp,eiip,enac",
+        help="Comma-separated handcrafted feature groups: onehot,ncp,eiip,enac.",
+    )
+    parser.add_argument(
+        "--handcrafted_only",
+        action="store_true",
+        help="Train only the handcrafted multi-scale CNN branch without BiRNA-BERT.",
+    )
     parser.add_argument("--handcrafted_cnn_channels", type=int, default=64)
     parser.add_argument("--handcrafted_output_dim", type=int, default=128)
     parser.add_argument(
@@ -180,6 +192,7 @@ def make_loader(
     use_bpe_view: bool,
     use_film: bool = False,
     use_handcrafted_features: bool = False,
+    handcrafted_feature_names: list[str] | None = None,
 ):
     if use_bpe_view:
         collator_cls = DualViewDataCollator
@@ -195,6 +208,7 @@ def make_loader(
             tokenizer=tokenizer,
             max_length=max_length,
             include_handcrafted=use_handcrafted_features,
+            handcrafted_feature_names=handcrafted_feature_names,
         ),
         num_workers=0,
     )
@@ -226,9 +240,17 @@ def train_one_fold(
         "lora_dropout": args.lora_dropout,
         "lora_target_modules": lora_target_modules,
     }
-    if args.use_handcrafted_features and not args.use_film:
-        raise ValueError("--use_handcrafted_features currently requires --use_film.")
-    if args.use_film:
+    if args.use_handcrafted_features and not args.use_film and not args.handcrafted_only:
+        raise ValueError("--use_handcrafted_features requires --use_film unless --handcrafted_only is set.")
+    handcrafted_input_channels = handcrafted_channel_count(args.handcrafted_feature_names)
+    if args.handcrafted_only:
+        model = HandcraftedOnlyClassifier(
+            handcrafted_input_channels=handcrafted_input_channels,
+            handcrafted_cnn_channels=args.handcrafted_cnn_channels,
+            handcrafted_output_dim=args.handcrafted_output_dim,
+            cnn_kernel_sizes=args.cnn_kernel_sizes,
+        )
+    elif args.use_film:
         film_model_cls = BiRNAFiLMHandcraftedClassifier if args.use_handcrafted_features else BiRNAFiLMLocalClassifier
         model = film_model_cls(
             **common_model_kwargs,
@@ -238,6 +260,7 @@ def train_one_fold(
             cnn_kernel_sizes=args.cnn_kernel_sizes,
             **(
                 {
+                    "handcrafted_input_channels": handcrafted_input_channels,
                     "handcrafted_cnn_channels": args.handcrafted_cnn_channels,
                     "handcrafted_output_dim": args.handcrafted_output_dim,
                 }
@@ -270,6 +293,7 @@ def train_one_fold(
         use_bpe_view=args.use_bpe_view,
         use_film=args.use_film,
         use_handcrafted_features=args.use_handcrafted_features,
+        handcrafted_feature_names=args.handcrafted_feature_names,
     )
     val_loader = make_loader(
         val_samples,
@@ -280,6 +304,7 @@ def train_one_fold(
         use_bpe_view=args.use_bpe_view,
         use_film=args.use_film,
         use_handcrafted_features=args.use_handcrafted_features,
+        handcrafted_feature_names=args.handcrafted_feature_names,
     )
     test_loader = make_loader(
         independent_test_samples,
@@ -290,6 +315,7 @@ def train_one_fold(
         use_bpe_view=args.use_bpe_view,
         use_film=args.use_film,
         use_handcrafted_features=args.use_handcrafted_features,
+        handcrafted_feature_names=args.handcrafted_feature_names,
     )
 
     best_score = -math.inf
@@ -475,6 +501,15 @@ def main():
         raise ValueError("--handcrafted_cnn_channels must be a positive integer.")
     if args.handcrafted_output_dim <= 0:
         raise ValueError("--handcrafted_output_dim must be a positive integer.")
+    args.handcrafted_feature_names = parse_feature_names(args.handcrafted_feature_names)
+    if args.handcrafted_only:
+        args.use_handcrafted_features = True
+        if args.use_lora:
+            raise ValueError("--handcrafted_only cannot be combined with --use_lora.")
+        if args.use_bpe_view:
+            raise ValueError("--handcrafted_only cannot be combined with --use_bpe_view.")
+        if args.use_film:
+            raise ValueError("--handcrafted_only cannot be combined with --use_film.")
     args.cnn_kernel_sizes = parse_cnn_kernel_sizes(args.cnn_kernel_sizes)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -501,8 +536,11 @@ def main():
     if args.use_handcrafted_features:
         print(
             "handcrafted_config: "
-            f"channels=12, cnn_channels={args.handcrafted_cnn_channels}, "
-            f"output_dim={args.handcrafted_output_dim}"
+            f"features={','.join(args.handcrafted_feature_names)}, "
+            f"channels={handcrafted_channel_count(args.handcrafted_feature_names)}, "
+            f"cnn_channels={args.handcrafted_cnn_channels}, "
+            f"output_dim={args.handcrafted_output_dim}, "
+            f"handcrafted_only={args.handcrafted_only}"
         )
     print(f"keep_best_model: {args.keep_best_model}")
     if args.use_lora:

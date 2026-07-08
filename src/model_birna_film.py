@@ -348,6 +348,7 @@ class BiRNAFiLMHandcraftedClassifier(BiRNAFiLMLocalClassifier):
         lora_target_modules: list[str] | None = None,
         film_nuc_pooling: str = "center_cnn_mean",
         cnn_kernel_sizes: list[int] | None = None,
+        handcrafted_input_channels: int = 12,
         handcrafted_cnn_channels: int = 64,
         handcrafted_output_dim: int = 128,
     ):
@@ -369,7 +370,7 @@ class BiRNAFiLMHandcraftedClassifier(BiRNAFiLMLocalClassifier):
         hidden_size = int(getattr(self.birna_model.config, "hidden_size", 768))
         birna_feature_dim = hidden_size * (3 if self._uses_dual_local_branch else 2)
         self.handcrafted_encoder = HandcraftedFeatureCNN(
-            input_channels=12,
+            input_channels=handcrafted_input_channels,
             cnn_channels=handcrafted_cnn_channels,
             output_dim=handcrafted_output_dim,
             kernel_sizes=cnn_kernel_sizes,
@@ -408,3 +409,35 @@ class BiRNAFiLMHandcraftedClassifier(BiRNAFiLMLocalClassifier):
         )
         hand_feat = self.handcrafted_encoder(handcrafted_features)
         return self.classifier(torch.cat([birna_feat, hand_feat], dim=1))
+
+
+class HandcraftedOnlyClassifier(nn.Module):
+    def __init__(
+        self,
+        handcrafted_input_channels: int = 12,
+        handcrafted_cnn_channels: int = 64,
+        handcrafted_output_dim: int = 128,
+        cnn_kernel_sizes: list[int] | None = None,
+        dropout: float = 0.2,
+    ):
+        super().__init__()
+        self.use_lora = False
+        self.handcrafted_encoder = HandcraftedFeatureCNN(
+            input_channels=handcrafted_input_channels,
+            cnn_channels=handcrafted_cnn_channels,
+            output_dim=handcrafted_output_dim,
+            kernel_sizes=cnn_kernel_sizes,
+            dropout=dropout,
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(handcrafted_output_dim, 128),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(128, 2),
+        )
+
+    def forward(self, handcrafted_features=None, **_):
+        if handcrafted_features is None:
+            raise ValueError("HandcraftedOnlyClassifier requires handcrafted_features from the data collator.")
+        hand_feat = self.handcrafted_encoder(handcrafted_features)
+        return self.classifier(hand_feat)

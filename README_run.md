@@ -16,9 +16,14 @@ v7c_bpe_global_nuc_full_cnn_film_lora = BPE global -> FiLM -> NUC full 41bp CNN 
 v7d_nuc_global_nuc_full_cnn_film_lora = NUC global -> FiLM -> NUC full 41bp CNN mean + LoRA
 v8_nuc_full_mean_center_cnn_film_lora = NUC global -> FiLM -> NUC full mean + center-window CNN fusion + LoRA
 v9a_birna_v7b_handcrafted_multiscale_cnn = v7b + handcrafted physicochemical multi-scale CNN branch
+v9b_no_enac_handcrafted_ablation = v9a without ENAC
+v9c_onehot_handcrafted_ablation = v9a with ONEHOT only
+v9d_ncp_eiip_handcrafted_ablation = v9a with NCP+EIIP only
+v9e_enac_handcrafted_ablation = v9a with ENAC only
+v9f_handcrafted_only = handcrafted-only multi-scale CNN baseline
 ```
 
-v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a 默认只使用 test_as_val：
+v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f 默认只使用 test_as_val：
 
 ```text
 strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
@@ -496,6 +501,66 @@ v9a vs v7b: 手工物化 CNN 分支是否带来稳定增益
 v9a vs v8: 显式物化特征是否比 BiRNA full-mean 融合更有效
 ```
 
+## v9b-v9f: handcrafted branch ablations
+
+这组实验用于解释 v9a 的提升到底来自哪一类手工特征。除 v9f 外，所有版本都保留 v7b BiRNA 分支：
+
+```text
+BiRNA branch:
+NUC global mean -> FiLM -> NUC center-window CNN mean + LoRA
+
+Handcrafted branch:
+selected handcrafted features -> multi-scale Conv1d(kernel=3,5,7) -> mean pooling
+
+Fusion:
+concat([birna_feat, handcrafted_feat]) -> MLP classifier
+```
+
+消融矩阵：
+
+| Version | BiRNA branch | Handcrafted branch | Channels | Purpose |
+|---|---|---|---:|---|
+| v9a | v7b | ONEHOT+NCP+EIIP+ENAC | 12 | Full handcrafted branch |
+| v9b | v7b | ONEHOT+NCP+EIIP | 8 | Remove ENAC |
+| v9c | v7b | ONEHOT | 4 | Base identity only |
+| v9d | v7b | NCP+EIIP | 4 | Physicochemical attributes only |
+| v9e | v7b | ENAC | 4 | Local composition only |
+| v9f | none | ONEHOT+NCP+EIIP+ENAC | 12 | Handcrafted-only baseline |
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v9b_no_enac_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9c_onehot_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9d_ncp_eiip_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9e_enac_handcrafted_ablation --dataset H_b --seed 42
+python train.py --version v9f_handcrafted_only --dataset H_b --seed 42
+```
+
+三个人类数据集建议先跑 H-b/H-k/H-l 的 v9b 和 v9f：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python train.py --version v9b_no_enac_handcrafted_ablation --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v9b_no_enac_handcrafted_ablation --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v9b_no_enac_handcrafted_ablation --dataset H_l --seed 42
+
+CUDA_VISIBLE_DEVICES=0 python train.py --version v9f_handcrafted_only --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v9f_handcrafted_only --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v9f_handcrafted_only --dataset H_l --seed 42
+```
+
+判断逻辑：
+
+```text
+v9b ~= v9a: ENAC 不是关键贡献
+v9b << v9a: ENAC 有价值
+v9c 强: one-hot 碱基身份解释主要提升
+v9d 强: NCP/EIIP 物化属性有真实贡献
+v9e 强: 局部碱基组成有真实贡献
+v9f 接近 v9a: handcrafted features 单独很强，BiRNA 分支贡献需要重新评估
+v9a > v9f 且 v9a > v7b: BiRNA 表征和手工特征互补
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -587,4 +652,9 @@ python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --
 python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_b --seed 42 --dry_run
+python train.py --version v9b_no_enac_handcrafted_ablation --dataset H_b --seed 42 --dry_run
+python train.py --version v9c_onehot_handcrafted_ablation --dataset H_b --seed 42 --dry_run
+python train.py --version v9d_ncp_eiip_handcrafted_ablation --dataset H_b --seed 42 --dry_run
+python train.py --version v9e_enac_handcrafted_ablation --dataset H_b --seed 42 --dry_run
+python train.py --version v9f_handcrafted_only --dataset H_b --seed 42 --dry_run
 ```

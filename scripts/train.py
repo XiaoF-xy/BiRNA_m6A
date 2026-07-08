@@ -101,11 +101,15 @@ def build_cv_command(config) -> list[str]:
     if model.use_handcrafted_features:
         command.extend([
             "--use_handcrafted_features",
+            "--handcrafted_feature_names",
+            ",".join(model.handcrafted_feature_names),
             "--handcrafted_cnn_channels",
             str(model.handcrafted_cnn_channels),
             "--handcrafted_output_dim",
             str(model.handcrafted_output_dim),
         ])
+    if model.handcrafted_only:
+        command.append("--handcrafted_only")
     if training.keep_best_model:
         command.append("--keep_best_model")
     return command

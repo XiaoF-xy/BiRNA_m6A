@@ -30,16 +30,23 @@ class RNANucDataset(Dataset):
         }
 
 
-def build_handcrafted_batch(sequences: list[str]) -> torch.Tensor:
-    features = [handcrafted_feature_matrix(sequence) for sequence in sequences]
+def build_handcrafted_batch(sequences: list[str], feature_names: list[str] | None = None) -> torch.Tensor:
+    features = [handcrafted_feature_matrix(sequence, feature_names=feature_names) for sequence in sequences]
     return torch.tensor(np.stack(features, axis=0), dtype=torch.float32)
 
 
 class NucDataCollator:
-    def __init__(self, tokenizer, max_length: int, include_handcrafted: bool = False):
+    def __init__(
+        self,
+        tokenizer,
+        max_length: int,
+        include_handcrafted: bool = False,
+        handcrafted_feature_names: list[str] | None = None,
+    ):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.include_handcrafted = include_handcrafted
+        self.handcrafted_feature_names = handcrafted_feature_names
 
     def __call__(self, batch):
         sequences = [item["sequence"] for item in batch]
@@ -54,15 +61,22 @@ class NucDataCollator:
         encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
         encoded["sequences"] = sequences
         if self.include_handcrafted:
-            encoded["handcrafted_features"] = build_handcrafted_batch(sequences)
+            encoded["handcrafted_features"] = build_handcrafted_batch(sequences, self.handcrafted_feature_names)
         return encoded
 
 
 class NucViewDataCollator:
-    def __init__(self, tokenizer, max_length: int, include_handcrafted: bool = False):
+    def __init__(
+        self,
+        tokenizer,
+        max_length: int,
+        include_handcrafted: bool = False,
+        handcrafted_feature_names: list[str] | None = None,
+    ):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.include_handcrafted = include_handcrafted
+        self.handcrafted_feature_names = handcrafted_feature_names
 
     def __call__(self, batch):
         sequences = [item["sequence"] for item in batch]
@@ -90,15 +104,22 @@ class NucViewDataCollator:
         encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
         encoded["sequences"] = sequences
         if self.include_handcrafted:
-            encoded["handcrafted_features"] = build_handcrafted_batch(sequences)
+            encoded["handcrafted_features"] = build_handcrafted_batch(sequences, self.handcrafted_feature_names)
         return encoded
 
 
 class DualViewDataCollator:
-    def __init__(self, tokenizer, max_length: int, include_handcrafted: bool = False):
+    def __init__(
+        self,
+        tokenizer,
+        max_length: int,
+        include_handcrafted: bool = False,
+        handcrafted_feature_names: list[str] | None = None,
+    ):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.include_handcrafted = include_handcrafted
+        self.handcrafted_feature_names = handcrafted_feature_names
 
     def __call__(self, batch):
         sequences = [item["sequence"] for item in batch]
@@ -146,7 +167,7 @@ class DualViewDataCollator:
         encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
         encoded["sequences"] = sequences
         if self.include_handcrafted:
-            encoded["handcrafted_features"] = build_handcrafted_batch(sequences)
+            encoded["handcrafted_features"] = build_handcrafted_batch(sequences, self.handcrafted_feature_names)
         return encoded
 
 
@@ -187,7 +208,7 @@ def move_batch_to_device(batch: dict, device: torch.device) -> tuple[dict, torch
 
 def train_one_epoch(model, loader, optimizer, criterion, device, epoch: int, freeze_backbone: bool) -> float:
     model.train()
-    if freeze_backbone and not getattr(model, "use_lora", False):
+    if freeze_backbone and not getattr(model, "use_lora", False) and hasattr(model, "birna_model"):
         model.birna_model.eval()
 
     total_loss = 0.0
