@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 
 from dataset_utils import SequenceSample, sequence_to_bpe_text, sequence_to_nuc_text
+from handcrafted_features import handcrafted_feature_matrix
 from metrics_utils import compute_binary_metrics
 
 
@@ -29,10 +30,16 @@ class RNANucDataset(Dataset):
         }
 
 
+def build_handcrafted_batch(sequences: list[str]) -> torch.Tensor:
+    features = [handcrafted_feature_matrix(sequence) for sequence in sequences]
+    return torch.tensor(np.stack(features, axis=0), dtype=torch.float32)
+
+
 class NucDataCollator:
-    def __init__(self, tokenizer, max_length: int):
+    def __init__(self, tokenizer, max_length: int, include_handcrafted: bool = False):
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.include_handcrafted = include_handcrafted
 
     def __call__(self, batch):
         sequences = [item["sequence"] for item in batch]
@@ -46,13 +53,16 @@ class NucDataCollator:
         )
         encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
         encoded["sequences"] = sequences
+        if self.include_handcrafted:
+            encoded["handcrafted_features"] = build_handcrafted_batch(sequences)
         return encoded
 
 
 class NucViewDataCollator:
-    def __init__(self, tokenizer, max_length: int):
+    def __init__(self, tokenizer, max_length: int, include_handcrafted: bool = False):
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.include_handcrafted = include_handcrafted
 
     def __call__(self, batch):
         sequences = [item["sequence"] for item in batch]
@@ -79,13 +89,16 @@ class NucViewDataCollator:
         encoded["nuc_content_mask"] = nuc_content_mask
         encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
         encoded["sequences"] = sequences
+        if self.include_handcrafted:
+            encoded["handcrafted_features"] = build_handcrafted_batch(sequences)
         return encoded
 
 
 class DualViewDataCollator:
-    def __init__(self, tokenizer, max_length: int):
+    def __init__(self, tokenizer, max_length: int, include_handcrafted: bool = False):
         self.tokenizer = tokenizer
         self.max_length = max_length
+        self.include_handcrafted = include_handcrafted
 
     def __call__(self, batch):
         sequences = [item["sequence"] for item in batch]
@@ -132,6 +145,8 @@ class DualViewDataCollator:
         encoded["bpe_content_mask"] = bpe_content_mask
         encoded["labels"] = torch.tensor([item["label"] for item in batch], dtype=torch.long)
         encoded["sequences"] = sequences
+        if self.include_handcrafted:
+            encoded["handcrafted_features"] = build_handcrafted_batch(sequences)
         return encoded
 
 

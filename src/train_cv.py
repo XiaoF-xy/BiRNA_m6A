@@ -16,7 +16,7 @@ from torch.utils.data import DataLoader
 from dataset_utils import SequenceSample, read_samples_from_file
 from metrics_utils import format_metrics, json_safe_metrics
 from model_birna_dual_view import BiRNADualViewClassifier
-from model_birna_film import BiRNAFiLMLocalClassifier
+from model_birna_film import BiRNAFiLMHandcraftedClassifier, BiRNAFiLMLocalClassifier
 from model_birna_nuc import BiRNANucClassifier, load_birna_tokenizer
 from training_utils import (
     DualViewDataCollator,
@@ -113,6 +113,9 @@ def parse_args():
     parser.add_argument("--lora_alpha", type=int, default=32)
     parser.add_argument("--lora_dropout", type=float, default=0.05)
     parser.add_argument("--lora_target_modules", type=str, default="Wqkv")
+    parser.add_argument("--use_handcrafted_features", action="store_true")
+    parser.add_argument("--handcrafted_cnn_channels", type=int, default=64)
+    parser.add_argument("--handcrafted_output_dim", type=int, default=128)
     parser.add_argument(
         "--keep_best_model",
         action="store_true",
@@ -176,6 +179,7 @@ def make_loader(
     shuffle: bool,
     use_bpe_view: bool,
     use_film: bool = False,
+    use_handcrafted_features: bool = False,
 ):
     if use_bpe_view:
         collator_cls = DualViewDataCollator
@@ -187,7 +191,11 @@ def make_loader(
         RNANucDataset(samples),
         batch_size=batch_size,
         shuffle=shuffle,
-        collate_fn=collator_cls(tokenizer=tokenizer, max_length=max_length),
+        collate_fn=collator_cls(
+            tokenizer=tokenizer,
+            max_length=max_length,
+            include_handcrafted=use_handcrafted_features,
+        ),
         num_workers=0,
     )
 
@@ -218,13 +226,24 @@ def train_one_fold(
         "lora_dropout": args.lora_dropout,
         "lora_target_modules": lora_target_modules,
     }
+    if args.use_handcrafted_features and not args.use_film:
+        raise ValueError("--use_handcrafted_features currently requires --use_film.")
     if args.use_film:
-        model = BiRNAFiLMLocalClassifier(
+        film_model_cls = BiRNAFiLMHandcraftedClassifier if args.use_handcrafted_features else BiRNAFiLMLocalClassifier
+        model = film_model_cls(
             **common_model_kwargs,
             film_global_view=args.film_global_view,
             local_window_radius=args.local_window_radius,
             film_nuc_pooling=args.film_nuc_pooling,
             cnn_kernel_sizes=args.cnn_kernel_sizes,
+            **(
+                {
+                    "handcrafted_cnn_channels": args.handcrafted_cnn_channels,
+                    "handcrafted_output_dim": args.handcrafted_output_dim,
+                }
+                if args.use_handcrafted_features
+                else {}
+            ),
         )
     else:
         model_cls = BiRNADualViewClassifier if args.use_bpe_view else BiRNANucClassifier
@@ -250,6 +269,7 @@ def train_one_fold(
         shuffle=True,
         use_bpe_view=args.use_bpe_view,
         use_film=args.use_film,
+        use_handcrafted_features=args.use_handcrafted_features,
     )
     val_loader = make_loader(
         val_samples,
@@ -259,6 +279,7 @@ def train_one_fold(
         shuffle=False,
         use_bpe_view=args.use_bpe_view,
         use_film=args.use_film,
+        use_handcrafted_features=args.use_handcrafted_features,
     )
     test_loader = make_loader(
         independent_test_samples,
@@ -268,6 +289,7 @@ def train_one_fold(
         shuffle=False,
         use_bpe_view=args.use_bpe_view,
         use_film=args.use_film,
+        use_handcrafted_features=args.use_handcrafted_features,
     )
 
     best_score = -math.inf
@@ -449,6 +471,10 @@ def main():
         raise ValueError("--max_length must be at least 43 for 41 NUC tokens plus CLS/SEP.")
     if args.local_window_radius < 0:
         raise ValueError("--local_window_radius must be non-negative.")
+    if args.handcrafted_cnn_channels <= 0:
+        raise ValueError("--handcrafted_cnn_channels must be a positive integer.")
+    if args.handcrafted_output_dim <= 0:
+        raise ValueError("--handcrafted_output_dim must be a positive integer.")
     args.cnn_kernel_sizes = parse_cnn_kernel_sizes(args.cnn_kernel_sizes)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
@@ -471,6 +497,13 @@ def main():
         print(f"film_nuc_pooling: {args.film_nuc_pooling}")
         print(f"cnn_kernel_sizes: {args.cnn_kernel_sizes}")
     print(f"use_lora: {args.use_lora}")
+    print(f"use_handcrafted_features: {args.use_handcrafted_features}")
+    if args.use_handcrafted_features:
+        print(
+            "handcrafted_config: "
+            f"channels=12, cnn_channels={args.handcrafted_cnn_channels}, "
+            f"output_dim={args.handcrafted_output_dim}"
+        )
     print(f"keep_best_model: {args.keep_best_model}")
     if args.use_lora:
         print(

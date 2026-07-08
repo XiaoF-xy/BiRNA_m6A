@@ -15,9 +15,10 @@ v7b_nuc_global_nuc_center_cnn_film_lora = NUC global -> FiLM -> NUC center-windo
 v7c_bpe_global_nuc_full_cnn_film_lora = BPE global -> FiLM -> NUC full 41bp CNN mean + LoRA
 v7d_nuc_global_nuc_full_cnn_film_lora = NUC global -> FiLM -> NUC full 41bp CNN mean + LoRA
 v8_nuc_full_mean_center_cnn_film_lora = NUC global -> FiLM -> NUC full mean + center-window CNN fusion + LoRA
+v9a_birna_v7b_handcrafted_multiscale_cnn = v7b + handcrafted physicochemical multi-scale CNN branch
 ```
 
-v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8 默认只使用 test_as_val：
+v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a 默认只使用 test_as_val：
 
 ```text
 strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
@@ -442,6 +443,59 @@ v7b vs v8: 保留全长 mean 分支是否提升 ACC/AUC/AUPRC 稳定性
 v7d vs v8: 全长 CNN 和中心 CNN 哪个更适合与全长 mean 融合
 ```
 
+## v9a: v7b + handcrafted physicochemical multi-scale CNN
+
+v9a 用于验证显式手工物化特征是否能补充 BiRNA-BERT v7b 的上下文表示。
+
+```text
+BiRNA-BERT branch:
+NUC global mean -> FiLM -> NUC center-window CNN mean
+
+Handcrafted branch:
+ONEHOT [4, 41]
+NCP    [3, 41]
+EIIP   [1, 41]
+ENAC   [4, 41]
+concat -> [12, 41]
+multi-scale Conv1d(kernel=3,5,7)
+mean pooling
+MLP -> handcrafted feature
+
+Fusion:
+concat([birna_feat, handcrafted_feat]) -> MLP classifier
+```
+
+该版本默认使用 test-as-val 对标协议、LoRA(Wqkv)、ACC 选择 best epoch，并在训练结束后删除 `best_model.pt`。
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_b --seed 42
+```
+
+运行人类三个数据集：
+
+```bash
+python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_b --seed 42
+python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_k --seed 42
+python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_l --seed 42
+```
+
+三张卡并行示例：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_l --seed 42
+```
+
+v9a 对照逻辑：
+
+```text
+v9a vs v7b: 手工物化 CNN 分支是否带来稳定增益
+v9a vs v8: 显式物化特征是否比 BiRNA full-mean 融合更有效
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -532,4 +586,5 @@ python train.py --version v7b_nuc_global_nuc_center_cnn_film_lora --dataset H_b 
 python train.py --version v7c_bpe_global_nuc_full_cnn_film_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v7d_nuc_global_nuc_full_cnn_film_lora --dataset H_b --seed 42 --dry_run
 python train.py --version v8_nuc_full_mean_center_cnn_film_lora --dataset H_b --seed 42 --dry_run
+python train.py --version v9a_birna_v7b_handcrafted_multiscale_cnn --dataset H_b --seed 42 --dry_run
 ```

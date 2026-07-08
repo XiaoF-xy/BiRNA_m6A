@@ -40,6 +40,7 @@ BASE_VERSION_CONFIG_MODULES = {
     "v7c_bpe_global_nuc_full_cnn_film_lora": "experiments.v7c_bpe_global_nuc_full_cnn_film_lora.config_v7c",
     "v7d_nuc_global_nuc_full_cnn_film_lora": "experiments.v7d_nuc_global_nuc_full_cnn_film_lora.config_v7d",
     "v8_nuc_full_mean_center_cnn_film_lora": "experiments.v8_nuc_full_mean_center_cnn_film_lora.config_v8",
+    "v9a_birna_v7b_handcrafted_multiscale_cnn": "experiments.v9a_birna_v7b_handcrafted_multiscale_cnn.config_v9a",
 }
 
 TEST_AS_VAL_ONLY_VERSIONS = {
@@ -50,6 +51,7 @@ TEST_AS_VAL_ONLY_VERSIONS = {
     "v7c_bpe_global_nuc_full_cnn_film_lora",
     "v7d_nuc_global_nuc_full_cnn_film_lora",
     "v8_nuc_full_mean_center_cnn_film_lora",
+    "v9a_birna_v7b_handcrafted_multiscale_cnn",
 }
 
 TEST_AS_VAL_ALIASES = {
@@ -102,6 +104,9 @@ class ModelConfig:
     lora_alpha: int = 32
     lora_dropout: float = 0.05
     lora_target_modules: list[str] = field(default_factory=lambda: ["Wqkv"])
+    use_handcrafted_features: bool = False
+    handcrafted_cnn_channels: int = 64
+    handcrafted_output_dim: int = 128
 
 
 @dataclass

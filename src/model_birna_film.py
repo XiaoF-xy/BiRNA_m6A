@@ -204,7 +204,7 @@ class BiRNAFiLMLocalClassifier(nn.Module):
             raise ValueError(f"Unsupported film_nuc_pooling: {self.film_nuc_pooling}")
         return self.cnn_projection(pooled)
 
-    def forward(
+    def _build_film_features(
         self,
         nuc_input_ids=None,
         nuc_attention_mask=None,
@@ -214,7 +214,7 @@ class BiRNAFiLMLocalClassifier(nn.Module):
         bpe_attention_mask=None,
         bpe_token_type_ids=None,
         bpe_content_mask=None,
-    ):
+    ) -> torch.Tensor:
         if nuc_input_ids is None or nuc_content_mask is None:
             raise ValueError("FiLM classifier requires DualViewDataCollator outputs with nuc_input_ids and nuc_content_mask.")
 
@@ -253,4 +253,158 @@ class BiRNAFiLMLocalClassifier(nn.Module):
             gamma, beta = self.film(h_global)
             h_mod = gamma * h_local + beta
             feat = torch.cat([h_global, h_mod], dim=1)
+        return feat
+
+    def forward(
+        self,
+        nuc_input_ids=None,
+        nuc_attention_mask=None,
+        nuc_token_type_ids=None,
+        nuc_content_mask=None,
+        bpe_input_ids=None,
+        bpe_attention_mask=None,
+        bpe_token_type_ids=None,
+        bpe_content_mask=None,
+    ):
+        feat = self._build_film_features(
+            nuc_input_ids=nuc_input_ids,
+            nuc_attention_mask=nuc_attention_mask,
+            nuc_token_type_ids=nuc_token_type_ids,
+            nuc_content_mask=nuc_content_mask,
+            bpe_input_ids=bpe_input_ids,
+            bpe_attention_mask=bpe_attention_mask,
+            bpe_token_type_ids=bpe_token_type_ids,
+            bpe_content_mask=bpe_content_mask,
+        )
         return self.classifier(feat)
+
+
+class HandcraftedFeatureCNN(nn.Module):
+    def __init__(
+        self,
+        input_channels: int = 12,
+        cnn_channels: int = 64,
+        output_dim: int = 128,
+        kernel_sizes: list[int] | None = None,
+        dropout: float = 0.2,
+    ):
+        super().__init__()
+        kernel_sizes = kernel_sizes or [3, 5, 7]
+        if any(kernel <= 0 or kernel % 2 == 0 for kernel in kernel_sizes):
+            raise ValueError(f"kernel_sizes must be positive odd integers, got: {kernel_sizes}")
+        self.input_channels = input_channels
+        self.convs = nn.ModuleList(
+            [
+                nn.Conv1d(
+                    in_channels=input_channels,
+                    out_channels=cnn_channels,
+                    kernel_size=kernel,
+                    padding=kernel // 2,
+                )
+                for kernel in kernel_sizes
+            ]
+        )
+        self.activation = nn.GELU()
+        self.dropout = nn.Dropout(dropout)
+        self.projection = nn.Sequential(
+            nn.Linear(cnn_channels * len(kernel_sizes), output_dim),
+            nn.LayerNorm(output_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+
+    def forward(self, handcrafted_features: torch.Tensor) -> torch.Tensor:
+        if handcrafted_features.ndim != 3:
+            raise ValueError(
+                "handcrafted_features must have shape [B, C, L], "
+                f"got: {tuple(handcrafted_features.shape)}"
+            )
+        if handcrafted_features.size(1) != self.input_channels:
+            raise ValueError(
+                f"Expected handcrafted_features with {self.input_channels} channels, "
+                f"got: {handcrafted_features.size(1)}"
+            )
+        conv_maps = [conv(handcrafted_features) for conv in self.convs]
+        features = torch.cat(conv_maps, dim=1)
+        features = self.activation(features)
+        features = self.dropout(features)
+        pooled = features.mean(dim=2)
+        return self.projection(pooled)
+
+
+class BiRNAFiLMHandcraftedClassifier(BiRNAFiLMLocalClassifier):
+    def __init__(
+        self,
+        model_dir: Path,
+        freeze_backbone: bool = True,
+        dropout: float = 0.2,
+        center_index: int = 20,
+        local_window_radius: int = 3,
+        film_global_view: str = "nuc",
+        use_lora: bool = True,
+        lora_r: int = 8,
+        lora_alpha: int = 32,
+        lora_dropout: float = 0.05,
+        lora_target_modules: list[str] | None = None,
+        film_nuc_pooling: str = "center_cnn_mean",
+        cnn_kernel_sizes: list[int] | None = None,
+        handcrafted_cnn_channels: int = 64,
+        handcrafted_output_dim: int = 128,
+    ):
+        super().__init__(
+            model_dir=model_dir,
+            freeze_backbone=freeze_backbone,
+            dropout=dropout,
+            center_index=center_index,
+            local_window_radius=local_window_radius,
+            film_global_view=film_global_view,
+            use_lora=use_lora,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            lora_target_modules=lora_target_modules,
+            film_nuc_pooling=film_nuc_pooling,
+            cnn_kernel_sizes=cnn_kernel_sizes,
+        )
+        hidden_size = int(getattr(self.birna_model.config, "hidden_size", 768))
+        birna_feature_dim = hidden_size * (3 if self._uses_dual_local_branch else 2)
+        self.handcrafted_encoder = HandcraftedFeatureCNN(
+            input_channels=12,
+            cnn_channels=handcrafted_cnn_channels,
+            output_dim=handcrafted_output_dim,
+            kernel_sizes=cnn_kernel_sizes,
+            dropout=dropout,
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(birna_feature_dim + handcrafted_output_dim, 256),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(256, 2),
+        )
+
+    def forward(
+        self,
+        nuc_input_ids=None,
+        nuc_attention_mask=None,
+        nuc_token_type_ids=None,
+        nuc_content_mask=None,
+        bpe_input_ids=None,
+        bpe_attention_mask=None,
+        bpe_token_type_ids=None,
+        bpe_content_mask=None,
+        handcrafted_features=None,
+    ):
+        if handcrafted_features is None:
+            raise ValueError("BiRNAFiLMHandcraftedClassifier requires handcrafted_features from the data collator.")
+        birna_feat = self._build_film_features(
+            nuc_input_ids=nuc_input_ids,
+            nuc_attention_mask=nuc_attention_mask,
+            nuc_token_type_ids=nuc_token_type_ids,
+            nuc_content_mask=nuc_content_mask,
+            bpe_input_ids=bpe_input_ids,
+            bpe_attention_mask=bpe_attention_mask,
+            bpe_token_type_ids=bpe_token_type_ids,
+            bpe_content_mask=bpe_content_mask,
+        )
+        hand_feat = self.handcrafted_encoder(handcrafted_features)
+        return self.classifier(torch.cat([birna_feat, hand_feat], dim=1))

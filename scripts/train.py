@@ -98,6 +98,14 @@ def build_cv_command(config) -> list[str]:
             "--lora_target_modules",
             ",".join(model.lora_target_modules),
         ])
+    if model.use_handcrafted_features:
+        command.extend([
+            "--use_handcrafted_features",
+            "--handcrafted_cnn_channels",
+            str(model.handcrafted_cnn_channels),
+            "--handcrafted_output_dim",
+            str(model.handcrafted_output_dim),
+        ])
     if training.keep_best_model:
         command.append("--keep_best_model")
     return command
