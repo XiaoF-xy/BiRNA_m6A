@@ -271,6 +271,41 @@ resolved_config.json
 
 By default, `best_model.pt` is deleted after evaluation to save disk space. Add `--keep_best_model` if a run needs checkpoints.
 
+## Prediction Ensemble Analysis
+
+After individual runs finish, `scripts/ensemble_predictions.py` can average existing `fold_1/test_predictions.csv` probabilities. This is analysis-only: it does not load models, does not train, and does not use GPU.
+
+Example H-b ensemble:
+
+```bash
+python scripts/ensemble_predictions.py \
+  --dataset H_b \
+  --seed 42 \
+  --versions v7b_nuc_global_nuc_center_cnn_film_lora v9a_birna_v7b_handcrafted_multiscale_cnn \
+  --name h_b_v7b_plus_v9a
+```
+
+Example H-k ensemble:
+
+```bash
+python scripts/ensemble_predictions.py \
+  --dataset H_k \
+  --seed 42 \
+  --versions v7b_nuc_global_nuc_center_cnn_film_lora v9d_ncp_eiip_handcrafted_ablation \
+  --name h_k_v7b_plus_v9d
+```
+
+Outputs are saved under:
+
+```text
+outputs/ensembles/<ensemble_name>/<dataset>/seed_<seed>/
+├── ensemble_predictions.csv
+├── ensemble_metrics.json
+└── ensemble_summary.csv
+```
+
+The script aligns predictions by `sequence,label`, averages the positive-class `prob`, applies the default `0.5` threshold, and recalculates ACC, MCC, AUC, AUPRC, F1, Precision, and Recall.
+
 ## Environment
 
 Recommended setup:

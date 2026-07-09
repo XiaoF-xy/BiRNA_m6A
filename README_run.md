@@ -632,6 +632,61 @@ strict 版本默认有 `fold_1` 到 `fold_5`。test-as-val 版本默认是单次
 python train.py --version v2_birna_bert_lora --dataset H_b --seed 42 --keep_best_model
 ```
 
+## 概率平均 ensemble 分析
+
+该步骤不训练新模型，只读取已有版本的：
+
+```text
+outputs/<version>/<dataset>/seed_<seed>/fold_1/test_predictions.csv
+```
+
+然后对 positive-class `prob` 做简单平均，重新计算 ACC、MCC、AUC、AUPRC、F1、Precision、Recall。
+
+H-b 推荐先跑：
+
+```bash
+python scripts/ensemble_predictions.py \
+  --dataset H_b \
+  --seed 42 \
+  --versions v7b_nuc_global_nuc_center_cnn_film_lora v9a_birna_v7b_handcrafted_multiscale_cnn \
+  --name h_b_v7b_plus_v9a
+```
+
+H-k 推荐先跑两组：
+
+```bash
+python scripts/ensemble_predictions.py \
+  --dataset H_k \
+  --seed 42 \
+  --versions v7b_nuc_global_nuc_center_cnn_film_lora v9a_birna_v7b_handcrafted_multiscale_cnn \
+  --name h_k_v7b_plus_v9a
+
+python scripts/ensemble_predictions.py \
+  --dataset H_k \
+  --seed 42 \
+  --versions v7b_nuc_global_nuc_center_cnn_film_lora v9d_ncp_eiip_handcrafted_ablation \
+  --name h_k_v7b_plus_v9d
+```
+
+H-l 推荐先跑：
+
+```bash
+python scripts/ensemble_predictions.py \
+  --dataset H_l \
+  --seed 42 \
+  --versions v9a_birna_v7b_handcrafted_multiscale_cnn v9e_enac_handcrafted_ablation \
+  --name h_l_v9a_plus_v9e
+```
+
+输出位置：
+
+```text
+outputs/ensembles/<ensemble_name>/<dataset>/seed_<seed>/
+├── ensemble_predictions.csv
+├── ensemble_metrics.json
+└── ensemble_summary.csv
+```
+
 ## dry-run 检查
 
 只查看解析后的命令，不启动训练：
