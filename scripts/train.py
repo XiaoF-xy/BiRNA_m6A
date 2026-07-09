@@ -59,6 +59,8 @@ def build_cv_command(config) -> list[str]:
         str(training.batch_size),
         "--lr",
         str(training.lr),
+        "--weight_decay",
+        str(training.weight_decay),
         "--seed",
         str(training.seed),
         "--max_length",

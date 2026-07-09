@@ -47,6 +47,18 @@ BASE_VERSION_CONFIG_MODULES = {
     "v9e_enac_handcrafted_ablation": "experiments.v9e_enac_handcrafted_ablation.config_v9e",
     "v9f_handcrafted_only": "experiments.v9f_handcrafted_only.config_v9f",
     "v10a_gated_v9a": "experiments.v10a_gated_v9a.config_v10a",
+    "v11a_v9a_lora_r4_a16": "experiments.v11a_v9a_lora_r4_a16.config_v11a",
+    "v11b_v9a_lora_r8_a16": "experiments.v11b_v9a_lora_r8_a16.config_v11b",
+    "v11c_v9a_lora_r8_a64": "experiments.v11c_v9a_lora_r8_a64.config_v11c",
+    "v11d_v9a_lora_r16_a32": "experiments.v11d_v9a_lora_r16_a32.config_v11d",
+    "v11e_v9a_lora_r16_a64": "experiments.v11e_v9a_lora_r16_a64.config_v11e",
+    "v11f_v9a_lora_r32_a64": "experiments.v11f_v9a_lora_r32_a64.config_v11f",
+    "v11g_v9a_lora_r8_a32_lr5e5": "experiments.v11g_v9a_lora_r8_a32_lr5e5.config_v11g",
+    "v11h_v9a_lora_r16_a32_lr5e5": "experiments.v11h_v9a_lora_r16_a32_lr5e5.config_v11h",
+    "v11i_v9a_lora_r16_a64_lr5e5": "experiments.v11i_v9a_lora_r16_a64_lr5e5.config_v11i",
+    "v11j_v9a_lora_r32_a64_lr5e5": "experiments.v11j_v9a_lora_r32_a64_lr5e5.config_v11j",
+    "v11k_v9a_lora_r16_a32_lr5e5_wd003": "experiments.v11k_v9a_lora_r16_a32_lr5e5_wd003.config_v11k",
+    "v11l_v9a_lora_r16_a64_lr5e5_wd003": "experiments.v11l_v9a_lora_r16_a64_lr5e5_wd003.config_v11l",
 }
 
 TEST_AS_VAL_ONLY_VERSIONS = {
@@ -64,6 +76,18 @@ TEST_AS_VAL_ONLY_VERSIONS = {
     "v9e_enac_handcrafted_ablation",
     "v9f_handcrafted_only",
     "v10a_gated_v9a",
+    "v11a_v9a_lora_r4_a16",
+    "v11b_v9a_lora_r8_a16",
+    "v11c_v9a_lora_r8_a64",
+    "v11d_v9a_lora_r16_a32",
+    "v11e_v9a_lora_r16_a64",
+    "v11f_v9a_lora_r32_a64",
+    "v11g_v9a_lora_r8_a32_lr5e5",
+    "v11h_v9a_lora_r16_a32_lr5e5",
+    "v11i_v9a_lora_r16_a64_lr5e5",
+    "v11j_v9a_lora_r32_a64_lr5e5",
+    "v11k_v9a_lora_r16_a32_lr5e5_wd003",
+    "v11l_v9a_lora_r16_a64_lr5e5_wd003",
 }
 
 TEST_AS_VAL_ALIASES = {
@@ -142,6 +166,7 @@ class TrainConfig:
     epochs: int = 20
     batch_size: int = 32
     lr: float = 1e-4
+    weight_decay: float = 0.01
     seed: int = 42
     max_length: int = 64
     keep_best_model: bool = False

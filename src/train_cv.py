@@ -57,6 +57,12 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--batch_size", type=int, default=32)
     parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument(
+        "--weight_decay",
+        type=float,
+        default=0.01,
+        help="AdamW weight decay. Default is 0.01, matching PyTorch AdamW's implicit default.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--max_length", type=int, default=64)
     parser.add_argument(
@@ -305,6 +311,7 @@ def train_one_fold(
     optimizer = torch.optim.AdamW(
         [parameter for parameter in model.parameters() if parameter.requires_grad],
         lr=args.lr,
+        weight_decay=args.weight_decay,
     )
     criterion = nn.CrossEntropyLoss()
     train_loader = make_loader(
@@ -516,6 +523,8 @@ def main():
         raise ValueError("--epochs must be a positive integer.")
     if args.batch_size <= 0:
         raise ValueError("--batch_size must be a positive integer.")
+    if args.weight_decay < 0:
+        raise ValueError("--weight_decay must be non-negative.")
     if args.max_length < 43:
         raise ValueError("--max_length must be at least 43 for 41 NUC tokens plus CLS/SEP.")
     if args.local_window_radius < 0:
@@ -552,6 +561,7 @@ def main():
     print(f"output_dir: {args.output_dir}")
     print(f"eval_protocol: {args.eval_protocol}")
     print(f"selection_metric: {args.selection_metric}")
+    print(f"weight_decay: {args.weight_decay}")
     print(f"folds: {args.folds}")
     print(f"freeze_backbone: {args.freeze_backbone}")
     print(f"use_center_pooling: {not args.disable_center_pooling}")

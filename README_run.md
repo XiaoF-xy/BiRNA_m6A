@@ -22,9 +22,10 @@ v9d_ncp_eiip_handcrafted_ablation = v9a with NCP+EIIP only
 v9e_enac_handcrafted_ablation = v9a with ENAC only
 v9f_handcrafted_only = handcrafted-only multi-scale CNN baseline
 v10a_gated_v9a = v9a two-branch model with learnable gated fusion
+v11a-v11l = v9a-based LoRA sweep over r/alpha/lr/weight_decay
 ```
 
-v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f/v10a 默认只使用 test_as_val：
+v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f/v10a/v11a-v11l 默认只使用 test_as_val：
 
 ```text
 strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
@@ -602,6 +603,97 @@ v10a ~= v9a: concat 已经足够，后续优先做不同分支/特征而不是�
 v10a < v9a: gate 可能过拟合或压制了强分支，回退 concat/ensemble
 ```
 
+## v11: v9a LoRA parameter sweep
+
+v11 保留 v9a 的模型结构，只微调 LoRA 和优化器参数：
+
+```text
+BiRNA branch:
+NUC global mean -> FiLM -> NUC center-window CNN mean + LoRA
+
+Handcrafted branch:
+ONEHOT+NCP+EIIP+ENAC -> multi-scale CNN(kernel=3,5,7) -> mean pooling
+
+Fusion:
+concat([birna_feat, handcrafted_feat]) -> MLP classifier
+```
+
+参数矩阵：
+
+| 版本 | r | alpha | dropout | lr | weight_decay | 目的 |
+|---|---:|---:|---:|---:|---:|---|
+| `v11a_v9a_lora_r4_a16` | 4 | 16 | 0.05 | 1e-4 | 0.01 | 更小 LoRA，测试是否更稳 |
+| `v11b_v9a_lora_r8_a16` | 8 | 16 | 0.05 | 1e-4 | 0.01 | 当前 r，降低 alpha |
+| `v11c_v9a_lora_r8_a64` | 8 | 64 | 0.05 | 1e-4 | 0.01 | 当前 r，提高 alpha |
+| `v11d_v9a_lora_r16_a32` | 16 | 32 | 0.05 | 1e-4 | 0.01 | 提高 rank，alpha 保守 |
+| `v11e_v9a_lora_r16_a64` | 16 | 64 | 0.05 | 1e-4 | 0.01 | 提高 rank 和 alpha |
+| `v11f_v9a_lora_r32_a64` | 32 | 64 | 0.05 | 1e-4 | 0.01 | 高容量 LoRA，测试上限 |
+| `v11g_v9a_lora_r8_a32_lr5e5` | 8 | 32 | 0.05 | 5e-5 | 0.01 | 当前 LoRA 配置，只降低 lr |
+| `v11h_v9a_lora_r16_a32_lr5e5` | 16 | 32 | 0.05 | 5e-5 | 0.01 | 中等 rank + 低 lr |
+| `v11i_v9a_lora_r16_a64_lr5e5` | 16 | 64 | 0.05 | 5e-5 | 0.01 | 中高容量 + 低 lr |
+| `v11j_v9a_lora_r32_a64_lr5e5` | 32 | 64 | 0.05 | 5e-5 | 0.01 | 高容量 + 低 lr |
+| `v11k_v9a_lora_r16_a32_lr5e5_wd003` | 16 | 32 | 0.05 | 5e-5 | 0.03 | 中容量 + 更强正则 |
+| `v11l_v9a_lora_r16_a64_lr5e5_wd003` | 16 | 64 | 0.05 | 5e-5 | 0.03 | 中高容量 + 更强正则 |
+
+建议先跑 6 个代表版本：
+
+```text
+v11d, v11e, v11g, v11h, v11i, v11k
+```
+
+三张卡并行示例：
+
+```bash
+# v11d
+CUDA_VISIBLE_DEVICES=0 python train.py --version v11d_v9a_lora_r16_a32 --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v11d_v9a_lora_r16_a32 --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v11d_v9a_lora_r16_a32 --dataset H_l --seed 42
+
+# v11e
+CUDA_VISIBLE_DEVICES=0 python train.py --version v11e_v9a_lora_r16_a64 --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v11e_v9a_lora_r16_a64 --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v11e_v9a_lora_r16_a64 --dataset H_l --seed 42
+
+# v11g
+CUDA_VISIBLE_DEVICES=0 python train.py --version v11g_v9a_lora_r8_a32_lr5e5 --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v11g_v9a_lora_r8_a32_lr5e5 --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v11g_v9a_lora_r8_a32_lr5e5 --dataset H_l --seed 42
+
+# v11h
+CUDA_VISIBLE_DEVICES=0 python train.py --version v11h_v9a_lora_r16_a32_lr5e5 --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v11h_v9a_lora_r16_a32_lr5e5 --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v11h_v9a_lora_r16_a32_lr5e5 --dataset H_l --seed 42
+
+# v11i
+CUDA_VISIBLE_DEVICES=0 python train.py --version v11i_v9a_lora_r16_a64_lr5e5 --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v11i_v9a_lora_r16_a64_lr5e5 --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v11i_v9a_lora_r16_a64_lr5e5 --dataset H_l --seed 42
+
+# v11k
+CUDA_VISIBLE_DEVICES=0 python train.py --version v11k_v9a_lora_r16_a32_lr5e5_wd003 --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v11k_v9a_lora_r16_a32_lr5e5_wd003 --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v11k_v9a_lora_r16_a32_lr5e5_wd003 --dataset H_l --seed 42
+```
+
+输出位置：
+
+```text
+outputs/<v11_version>/<dataset>/seed_<seed>/
+```
+
+判断逻辑：
+
+```text
+v11x > v9a in at least two Human datasets by ACC/MCC:
+    保留该 LoRA 配置作为新候选
+
+v11x only improves AUC/AUPRC/Recall but lowers ACC/MCC:
+    作为分析结果，不替代主线
+
+all v11 ~= or < v9a:
+    保留 v9a 默认 LoRA，说明结构和特征比 LoRA 参数更关键
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -754,4 +846,16 @@ python train.py --version v9d_ncp_eiip_handcrafted_ablation --dataset H_b --seed
 python train.py --version v9e_enac_handcrafted_ablation --dataset H_b --seed 42 --dry_run
 python train.py --version v9f_handcrafted_only --dataset H_b --seed 42 --dry_run
 python train.py --version v10a_gated_v9a --dataset H_b --seed 42 --dry_run
+python train.py --version v11a_v9a_lora_r4_a16 --dataset H_b --seed 42 --dry_run
+python train.py --version v11b_v9a_lora_r8_a16 --dataset H_b --seed 42 --dry_run
+python train.py --version v11c_v9a_lora_r8_a64 --dataset H_b --seed 42 --dry_run
+python train.py --version v11d_v9a_lora_r16_a32 --dataset H_b --seed 42 --dry_run
+python train.py --version v11e_v9a_lora_r16_a64 --dataset H_b --seed 42 --dry_run
+python train.py --version v11f_v9a_lora_r32_a64 --dataset H_b --seed 42 --dry_run
+python train.py --version v11g_v9a_lora_r8_a32_lr5e5 --dataset H_b --seed 42 --dry_run
+python train.py --version v11h_v9a_lora_r16_a32_lr5e5 --dataset H_b --seed 42 --dry_run
+python train.py --version v11i_v9a_lora_r16_a64_lr5e5 --dataset H_b --seed 42 --dry_run
+python train.py --version v11j_v9a_lora_r32_a64_lr5e5 --dataset H_b --seed 42 --dry_run
+python train.py --version v11k_v9a_lora_r16_a32_lr5e5_wd003 --dataset H_b --seed 42 --dry_run
+python train.py --version v11l_v9a_lora_r16_a64_lr5e5_wd003 --dataset H_b --seed 42 --dry_run
 ```

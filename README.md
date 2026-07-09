@@ -25,8 +25,9 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v9e_enac_handcrafted_ablation` | runnable | v9a with ENAC-only handcrafted branch |
 | `v9f_handcrafted_only` | runnable | handcrafted-only baseline without BiRNA-BERT, FiLM, or LoRA |
 | `v10a_gated_v9a` | runnable | v9a two-branch model with learnable gated fusion instead of concat fusion |
+| `v11a`-`v11l` | runnable | v9a-based LoRA sweep over rank, alpha, learning rate, and explicit weight decay |
 
-Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f/v10a are test-as-validation-only experiments by default.
+Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f/v10a/v11a-v11l are test-as-validation-only experiments by default.
 
 Benchmark aliases using test-as-validation are also runnable:
 
@@ -71,7 +72,8 @@ BiRNA_m6A/
 │   ├── v9d_ncp_eiip_handcrafted_ablation/
 │   ├── v9e_enac_handcrafted_ablation/
 │   ├── v9f_handcrafted_only/
-│   └── v10a_gated_v9a/
+│   ├── v10a_gated_v9a/
+│   └── v11*_v9a_lora_*/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -95,7 +97,8 @@ BiRNA_m6A/
 │   ├── v9d_ncp_eiip_handcrafted_ablation/
 │   ├── v9e_enac_handcrafted_ablation/
 │   ├── v9f_handcrafted_only/
-│   └── v10a_gated_v9a/
+│   ├── v10a_gated_v9a/
+│   └── v11*_v9a_lora_*/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -131,9 +134,10 @@ experiments/v9d_ncp_eiip_handcrafted_ablation/config_v9d.py
 experiments/v9e_enac_handcrafted_ablation/config_v9e.py
 experiments/v9f_handcrafted_only/config_v9f.py
 experiments/v10a_gated_v9a/config_v10a.py
+experiments/v11*_v9a_lora_*/config_v11*.py
 ```
 
-`configs/configarg.py` keeps the shared parameters currently needed by v1-v10a: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, handcrafted-feature switch, handcrafted feature subset, handcrafted-only switch, gated-fusion switch, and LoRA settings. Version configs only override the small differences between methods.
+`configs/configarg.py` keeps the shared parameters currently needed by v1-v11l: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, handcrafted-feature switch, handcrafted feature subset, handcrafted-only switch, gated-fusion switch, LoRA settings, learning rate, and explicit AdamW weight decay. Version configs only override the small differences between methods.
 
 ## Run Experiments
 
@@ -188,6 +192,7 @@ python train.py --version v9d_ncp_eiip_handcrafted_ablation --dataset H_b --seed
 python train.py --version v9e_enac_handcrafted_ablation --dataset H_b --seed 42
 python train.py --version v9f_handcrafted_only --dataset H_b --seed 42
 python train.py --version v10a_gated_v9a --dataset H_b --seed 42
+python train.py --version v11d_v9a_lora_r16_a32 --dataset H_b --seed 42
 ```
 
 v7 comparison matrix:
@@ -232,6 +237,23 @@ fused      = gate * birna_proj + (1 - gate) * hand_proj
 ```
 
 Use v10a to test whether the model benefits from dynamically weighting BiRNA-BERT and handcrafted branches per sample.
+
+v11a-v11l are LoRA sweep experiments on top of v9a. They keep the v9a model structure fixed and only change LoRA rank/alpha, learning rate, and explicit AdamW weight decay. Full details are in:
+
+```text
+experiments/v11_lora_sweep_README.md
+```
+
+Recommended first-pass versions:
+
+```text
+v11d_v9a_lora_r16_a32
+v11e_v9a_lora_r16_a64
+v11g_v9a_lora_r8_a32_lr5e5
+v11h_v9a_lora_r16_a32_lr5e5
+v11i_v9a_lora_r16_a64_lr5e5
+v11k_v9a_lora_r16_a32_lr5e5_wd003
+```
 
 Test-as-validation benchmark protocol:
 
