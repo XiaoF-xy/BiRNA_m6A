@@ -411,6 +411,110 @@ class BiRNAFiLMHandcraftedClassifier(BiRNAFiLMLocalClassifier):
         return self.classifier(torch.cat([birna_feat, hand_feat], dim=1))
 
 
+class BiRNAFiLMGatedHandcraftedClassifier(BiRNAFiLMHandcraftedClassifier):
+    def __init__(
+        self,
+        model_dir: Path,
+        freeze_backbone: bool = True,
+        dropout: float = 0.2,
+        center_index: int = 20,
+        local_window_radius: int = 3,
+        film_global_view: str = "nuc",
+        use_lora: bool = True,
+        lora_r: int = 8,
+        lora_alpha: int = 32,
+        lora_dropout: float = 0.05,
+        lora_target_modules: list[str] | None = None,
+        film_nuc_pooling: str = "center_cnn_mean",
+        cnn_kernel_sizes: list[int] | None = None,
+        handcrafted_input_channels: int = 12,
+        handcrafted_cnn_channels: int = 64,
+        handcrafted_output_dim: int = 128,
+        gated_fusion_dim: int = 256,
+        gated_hidden_dim: int = 128,
+    ):
+        if gated_fusion_dim <= 0:
+            raise ValueError(f"gated_fusion_dim must be positive, got: {gated_fusion_dim}")
+        if gated_hidden_dim <= 0:
+            raise ValueError(f"gated_hidden_dim must be positive, got: {gated_hidden_dim}")
+        super().__init__(
+            model_dir=model_dir,
+            freeze_backbone=freeze_backbone,
+            dropout=dropout,
+            center_index=center_index,
+            local_window_radius=local_window_radius,
+            film_global_view=film_global_view,
+            use_lora=use_lora,
+            lora_r=lora_r,
+            lora_alpha=lora_alpha,
+            lora_dropout=lora_dropout,
+            lora_target_modules=lora_target_modules,
+            film_nuc_pooling=film_nuc_pooling,
+            cnn_kernel_sizes=cnn_kernel_sizes,
+            handcrafted_input_channels=handcrafted_input_channels,
+            handcrafted_cnn_channels=handcrafted_cnn_channels,
+            handcrafted_output_dim=handcrafted_output_dim,
+        )
+        hidden_size = int(getattr(self.birna_model.config, "hidden_size", 768))
+        birna_feature_dim = hidden_size * (3 if self._uses_dual_local_branch else 2)
+        self.birna_projection = nn.Sequential(
+            nn.Linear(birna_feature_dim, gated_fusion_dim),
+            nn.LayerNorm(gated_fusion_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+        self.handcrafted_projection = nn.Sequential(
+            nn.Linear(handcrafted_output_dim, gated_fusion_dim),
+            nn.LayerNorm(gated_fusion_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+        )
+        self.fusion_gate = nn.Sequential(
+            nn.Linear(gated_fusion_dim * 2, gated_hidden_dim),
+            nn.GELU(),
+            nn.Dropout(dropout),
+            nn.Linear(gated_hidden_dim, gated_fusion_dim),
+            nn.Sigmoid(),
+        )
+        self.classifier = nn.Sequential(
+            nn.Linear(gated_fusion_dim, 256),
+            nn.ReLU(),
+            nn.Dropout(dropout),
+            nn.Linear(256, 2),
+        )
+
+    def forward(
+        self,
+        nuc_input_ids=None,
+        nuc_attention_mask=None,
+        nuc_token_type_ids=None,
+        nuc_content_mask=None,
+        bpe_input_ids=None,
+        bpe_attention_mask=None,
+        bpe_token_type_ids=None,
+        bpe_content_mask=None,
+        handcrafted_features=None,
+    ):
+        if handcrafted_features is None:
+            raise ValueError("BiRNAFiLMGatedHandcraftedClassifier requires handcrafted_features from the data collator.")
+        birna_feat = self._build_film_features(
+            nuc_input_ids=nuc_input_ids,
+            nuc_attention_mask=nuc_attention_mask,
+            nuc_token_type_ids=nuc_token_type_ids,
+            nuc_content_mask=nuc_content_mask,
+            bpe_input_ids=bpe_input_ids,
+            bpe_attention_mask=bpe_attention_mask,
+            bpe_token_type_ids=bpe_token_type_ids,
+            bpe_content_mask=bpe_content_mask,
+        )
+        hand_feat = self.handcrafted_encoder(handcrafted_features)
+        birna_proj = self.birna_projection(birna_feat)
+        hand_proj = self.handcrafted_projection(hand_feat)
+        gate = self.fusion_gate(torch.cat([birna_proj, hand_proj], dim=1))
+        fused_feat = gate * birna_proj + (1.0 - gate) * hand_proj
+        return self.classifier(fused_feat)
+
+
 class HandcraftedOnlyClassifier(nn.Module):
     def __init__(
         self,

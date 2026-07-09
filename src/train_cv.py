@@ -17,7 +17,12 @@ from dataset_utils import SequenceSample, read_samples_from_file
 from metrics_utils import format_metrics, json_safe_metrics
 from model_birna_dual_view import BiRNADualViewClassifier
 from handcrafted_features import handcrafted_channel_count, parse_feature_names
-from model_birna_film import BiRNAFiLMHandcraftedClassifier, BiRNAFiLMLocalClassifier, HandcraftedOnlyClassifier
+from model_birna_film import (
+    BiRNAFiLMGatedHandcraftedClassifier,
+    BiRNAFiLMHandcraftedClassifier,
+    BiRNAFiLMLocalClassifier,
+    HandcraftedOnlyClassifier,
+)
 from model_birna_nuc import BiRNANucClassifier, load_birna_tokenizer
 from training_utils import (
     DualViewDataCollator,
@@ -128,6 +133,13 @@ def parse_args():
     )
     parser.add_argument("--handcrafted_cnn_channels", type=int, default=64)
     parser.add_argument("--handcrafted_output_dim", type=int, default=128)
+    parser.add_argument(
+        "--use_gated_fusion",
+        action="store_true",
+        help="Fuse BiRNA and handcrafted branches with a learnable vector gate instead of simple concatenation.",
+    )
+    parser.add_argument("--gated_fusion_dim", type=int, default=256)
+    parser.add_argument("--gated_hidden_dim", type=int, default=128)
     parser.add_argument(
         "--keep_best_model",
         action="store_true",
@@ -251,22 +263,33 @@ def train_one_fold(
             cnn_kernel_sizes=args.cnn_kernel_sizes,
         )
     elif args.use_film:
-        film_model_cls = BiRNAFiLMHandcraftedClassifier if args.use_handcrafted_features else BiRNAFiLMLocalClassifier
+        if args.use_gated_fusion:
+            film_model_cls = BiRNAFiLMGatedHandcraftedClassifier
+        else:
+            film_model_cls = BiRNAFiLMHandcraftedClassifier if args.use_handcrafted_features else BiRNAFiLMLocalClassifier
+        model_extra_kwargs = {}
+        if args.use_handcrafted_features:
+            model_extra_kwargs.update(
+                {
+                    "handcrafted_input_channels": handcrafted_input_channels,
+                    "handcrafted_cnn_channels": args.handcrafted_cnn_channels,
+                    "handcrafted_output_dim": args.handcrafted_output_dim,
+                }
+            )
+        if args.use_gated_fusion:
+            model_extra_kwargs.update(
+                {
+                    "gated_fusion_dim": args.gated_fusion_dim,
+                    "gated_hidden_dim": args.gated_hidden_dim,
+                }
+            )
         model = film_model_cls(
             **common_model_kwargs,
             film_global_view=args.film_global_view,
             local_window_radius=args.local_window_radius,
             film_nuc_pooling=args.film_nuc_pooling,
             cnn_kernel_sizes=args.cnn_kernel_sizes,
-            **(
-                {
-                    "handcrafted_input_channels": handcrafted_input_channels,
-                    "handcrafted_cnn_channels": args.handcrafted_cnn_channels,
-                    "handcrafted_output_dim": args.handcrafted_output_dim,
-                }
-                if args.use_handcrafted_features
-                else {}
-            ),
+            **model_extra_kwargs,
         )
     else:
         model_cls = BiRNADualViewClassifier if args.use_bpe_view else BiRNANucClassifier
@@ -501,9 +524,17 @@ def main():
         raise ValueError("--handcrafted_cnn_channels must be a positive integer.")
     if args.handcrafted_output_dim <= 0:
         raise ValueError("--handcrafted_output_dim must be a positive integer.")
+    if args.gated_fusion_dim <= 0:
+        raise ValueError("--gated_fusion_dim must be a positive integer.")
+    if args.gated_hidden_dim <= 0:
+        raise ValueError("--gated_hidden_dim must be a positive integer.")
     args.handcrafted_feature_names = parse_feature_names(args.handcrafted_feature_names)
+    if args.use_gated_fusion and (not args.use_film or not args.use_handcrafted_features):
+        raise ValueError("--use_gated_fusion requires both --use_film and --use_handcrafted_features.")
     if args.handcrafted_only:
         args.use_handcrafted_features = True
+        if args.use_gated_fusion:
+            raise ValueError("--handcrafted_only cannot be combined with --use_gated_fusion.")
         if args.use_lora:
             raise ValueError("--handcrafted_only cannot be combined with --use_lora.")
         if args.use_bpe_view:
@@ -540,8 +571,14 @@ def main():
             f"channels={handcrafted_channel_count(args.handcrafted_feature_names)}, "
             f"cnn_channels={args.handcrafted_cnn_channels}, "
             f"output_dim={args.handcrafted_output_dim}, "
-            f"handcrafted_only={args.handcrafted_only}"
+            f"handcrafted_only={args.handcrafted_only}, "
+            f"use_gated_fusion={args.use_gated_fusion}"
         )
+        if args.use_gated_fusion:
+            print(
+                "gated_fusion_config: "
+                f"fusion_dim={args.gated_fusion_dim}, hidden_dim={args.gated_hidden_dim}"
+            )
     print(f"keep_best_model: {args.keep_best_model}")
     if args.use_lora:
         print(

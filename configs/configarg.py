@@ -46,6 +46,7 @@ BASE_VERSION_CONFIG_MODULES = {
     "v9d_ncp_eiip_handcrafted_ablation": "experiments.v9d_ncp_eiip_handcrafted_ablation.config_v9d",
     "v9e_enac_handcrafted_ablation": "experiments.v9e_enac_handcrafted_ablation.config_v9e",
     "v9f_handcrafted_only": "experiments.v9f_handcrafted_only.config_v9f",
+    "v10a_gated_v9a": "experiments.v10a_gated_v9a.config_v10a",
 }
 
 TEST_AS_VAL_ONLY_VERSIONS = {
@@ -62,6 +63,7 @@ TEST_AS_VAL_ONLY_VERSIONS = {
     "v9d_ncp_eiip_handcrafted_ablation",
     "v9e_enac_handcrafted_ablation",
     "v9f_handcrafted_only",
+    "v10a_gated_v9a",
 }
 
 TEST_AS_VAL_ALIASES = {
@@ -119,6 +121,9 @@ class ModelConfig:
     handcrafted_only: bool = False
     handcrafted_cnn_channels: int = 64
     handcrafted_output_dim: int = 128
+    use_gated_fusion: bool = False
+    gated_fusion_dim: int = 256
+    gated_hidden_dim: int = 128
 
 
 @dataclass

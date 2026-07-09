@@ -24,8 +24,9 @@ BiRNA_m6A is a versioned research project for RNA m6A site prediction with BiRNA
 | `v9d_ncp_eiip_handcrafted_ablation` | runnable | v9a with NCP+EIIP physicochemical handcrafted branch |
 | `v9e_enac_handcrafted_ablation` | runnable | v9a with ENAC-only handcrafted branch |
 | `v9f_handcrafted_only` | runnable | handcrafted-only baseline without BiRNA-BERT, FiLM, or LoRA |
+| `v10a_gated_v9a` | runnable | v9a two-branch model with learnable gated fusion instead of concat fusion |
 
-Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f are test-as-validation-only experiments by default.
+Versions v1-v5 use the strict protocol by default: `train.csv` is split into stratified train/val folds, and `test.csv` is used only for final evaluation. Versions v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f/v10a are test-as-validation-only experiments by default.
 
 Benchmark aliases using test-as-validation are also runnable:
 
@@ -69,7 +70,8 @@ BiRNA_m6A/
 │   ├── v9c_onehot_handcrafted_ablation/
 │   ├── v9d_ncp_eiip_handcrafted_ablation/
 │   ├── v9e_enac_handcrafted_ablation/
-│   └── v9f_handcrafted_only/
+│   ├── v9f_handcrafted_only/
+│   └── v10a_gated_v9a/
 ├── pretrained/
 │   └── birna-bert-model/
 ├── scripts/
@@ -92,7 +94,8 @@ BiRNA_m6A/
 │   ├── v9c_onehot_handcrafted_ablation/
 │   ├── v9d_ncp_eiip_handcrafted_ablation/
 │   ├── v9e_enac_handcrafted_ablation/
-│   └── v9f_handcrafted_only/
+│   ├── v9f_handcrafted_only/
+│   └── v10a_gated_v9a/
 ├── train.py
 ├── requirements_birna.txt
 └── README_run.md
@@ -127,9 +130,10 @@ experiments/v9c_onehot_handcrafted_ablation/config_v9c.py
 experiments/v9d_ncp_eiip_handcrafted_ablation/config_v9d.py
 experiments/v9e_enac_handcrafted_ablation/config_v9e.py
 experiments/v9f_handcrafted_only/config_v9f.py
+experiments/v10a_gated_v9a/config_v10a.py
 ```
 
-`configs/configarg.py` keeps the shared parameters currently needed by v1-v9f: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, handcrafted-feature switch, handcrafted feature subset, handcrafted-only switch, and LoRA settings. Version configs only override the small differences between methods.
+`configs/configarg.py` keeps the shared parameters currently needed by v1-v10a: model path, tokenizer path, dataset alias, output path, evaluation protocol, best-epoch selection metric, BPE-view switch, FiLM switch, local-window size, FiLM NUC pooling mode, CNN kernel sizes, handcrafted-feature switch, handcrafted feature subset, handcrafted-only switch, gated-fusion switch, and LoRA settings. Version configs only override the small differences between methods.
 
 ## Run Experiments
 
@@ -183,6 +187,7 @@ python train.py --version v9c_onehot_handcrafted_ablation --dataset H_b --seed 4
 python train.py --version v9d_ncp_eiip_handcrafted_ablation --dataset H_b --seed 42
 python train.py --version v9e_enac_handcrafted_ablation --dataset H_b --seed 42
 python train.py --version v9f_handcrafted_only --dataset H_b --seed 42
+python train.py --version v10a_gated_v9a --dataset H_b --seed 42
 ```
 
 v7 comparison matrix:
@@ -216,6 +221,17 @@ v9b-v9f are handcrafted branch ablations:
 | `v9d_ncp_eiip_handcrafted_ablation` | v7b | NCP+EIIP only | Test whether physicochemical attributes contribute |
 | `v9e_enac_handcrafted_ablation` | v7b | ENAC only | Test whether local composition contributes |
 | `v9f_handcrafted_only` | none | ONEHOT+NCP+EIIP+ENAC | Test handcrafted features without BiRNA-BERT |
+
+v10a replaces v9a's simple concat fusion with a learnable vector gate:
+
+```text
+birna_proj = Linear(v7b BiRNA feature)
+hand_proj  = Linear(handcrafted feature)
+gate       = sigmoid(MLP([birna_proj, hand_proj]))
+fused      = gate * birna_proj + (1 - gate) * hand_proj
+```
+
+Use v10a to test whether the model benefits from dynamically weighting BiRNA-BERT and handcrafted branches per sample.
 
 Test-as-validation benchmark protocol:
 

@@ -21,9 +21,10 @@ v9c_onehot_handcrafted_ablation = v9a with ONEHOT only
 v9d_ncp_eiip_handcrafted_ablation = v9a with NCP+EIIP only
 v9e_enac_handcrafted_ablation = v9a with ENAC only
 v9f_handcrafted_only = handcrafted-only multi-scale CNN baseline
+v10a_gated_v9a = v9a two-branch model with learnable gated fusion
 ```
 
-v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f 默认只使用 test_as_val：
+v1-v5 有两套评估协议；v6a/v6b/v7a/v7b/v7c/v7d/v8/v9a-v9f/v10a 默认只使用 test_as_val：
 
 ```text
 strict_cv    = train.csv 内部分层 5 折验证，test.csv 只做最终评估
@@ -561,6 +562,46 @@ v9f 接近 v9a: handcrafted features 单独很强，BiRNA 分支贡献需要重�
 v9a > v9f 且 v9a > v7b: BiRNA 表征和手工特征互补
 ```
 
+## v10a: gated fusion of v9a branches
+
+v10a 保留 v9a 的两个分支，只把融合方式从直接拼接改为可学习门控：
+
+```text
+BiRNA branch:
+NUC global mean -> FiLM -> NUC center-window CNN mean + LoRA
+
+Handcrafted branch:
+ONEHOT+NCP+EIIP+ENAC -> multi-scale Conv1d(kernel=3,5,7) -> mean pooling
+
+Fusion:
+birna_proj = Linear(birna_feat)
+hand_proj  = Linear(hand_feat)
+gate       = sigmoid(MLP([birna_proj, hand_proj]))
+fused      = gate * birna_proj + (1 - gate) * hand_proj
+```
+
+运行 Human_Brain：
+
+```bash
+python train.py --version v10a_gated_v9a --dataset H_b --seed 42
+```
+
+三个人类数据集并行：
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python train.py --version v10a_gated_v9a --dataset H_b --seed 42
+CUDA_VISIBLE_DEVICES=1 python train.py --version v10a_gated_v9a --dataset H_k --seed 42
+CUDA_VISIBLE_DEVICES=2 python train.py --version v10a_gated_v9a --dataset H_l --seed 42
+```
+
+判断逻辑：
+
+```text
+v10a > v9a: learnable gate 比 concat fusion 更适合两分支融合
+v10a ~= v9a: concat 已经足够，后续优先做不同分支/特征而不是融合层
+v10a < v9a: gate 可能过拟合或压制了强分支，回退 concat/ensemble
+```
+
 ## 评估协议
 
 每个数据集使用自己的：
@@ -712,4 +753,5 @@ python train.py --version v9c_onehot_handcrafted_ablation --dataset H_b --seed 4
 python train.py --version v9d_ncp_eiip_handcrafted_ablation --dataset H_b --seed 42 --dry_run
 python train.py --version v9e_enac_handcrafted_ablation --dataset H_b --seed 42 --dry_run
 python train.py --version v9f_handcrafted_only --dataset H_b --seed 42 --dry_run
+python train.py --version v10a_gated_v9a --dataset H_b --seed 42 --dry_run
 ```

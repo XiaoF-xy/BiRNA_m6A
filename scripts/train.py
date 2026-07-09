@@ -108,6 +108,14 @@ def build_cv_command(config) -> list[str]:
             "--handcrafted_output_dim",
             str(model.handcrafted_output_dim),
         ])
+    if model.use_gated_fusion:
+        command.extend([
+            "--use_gated_fusion",
+            "--gated_fusion_dim",
+            str(model.gated_fusion_dim),
+            "--gated_hidden_dim",
+            str(model.gated_hidden_dim),
+        ])
     if model.handcrafted_only:
         command.append("--handcrafted_only")
     if training.keep_best_model:
